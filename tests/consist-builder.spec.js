@@ -238,7 +238,7 @@ test.describe('Train Planning - Consist Builder', () => {
     // Step 3: Verify train is in list
     let trainRow = page.getByTestId(/train-row-/).first();
     await expect(trainRow).toBeVisible();
-    await expect(trainRow).toContainText('1 car');
+    await expect(trainRow).toContainText('1 loco');
 
     // Step 4: Edit the train
     await trainRow.click();
