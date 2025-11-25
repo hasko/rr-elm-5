@@ -306,9 +306,9 @@ elements turnoutState =
 Positioned relative to the angled siding.
 -}
 furniture :
-    { sawmill : { position : Vec2, width : Float, height : Float }
-    , platform : { position : Vec2, width : Float, height : Float }
-    , teamTrackRamp : { position : Vec2, width : Float, height : Float }
+    { sawmill : { position : Vec2, width : Float, height : Float, orientation : Float }
+    , platform : { position : Vec2, width : Float, height : Float, orientation : Float }
+    , teamTrackRamp : { position : Vec2, width : Float, height : Float, orientation : Float }
     , trees : List Vec2
     }
 furniture =
@@ -324,24 +324,31 @@ furniture =
         -- Rotate siding direction 90° clockwise: (x, y) -> (y, -x)
         perpOffset =
             { x = sidingDirection.y, y = -sidingDirection.x }
+
+        -- Siding track orientation (45 degrees)
+        sidingOrientation =
+            totalCurveAngle
     in
     { sawmill =
         -- East of team track area (perpendicular offset from siding)
         { position = vec2 (teamTrackPos.x + 50 * perpOffset.x) (teamTrackPos.y + 50 * perpOffset.y)
         , width = 80
         , height = 60
+        , orientation = sidingOrientation
         }
     , platform =
         -- West of platform position (negative perpendicular offset)
         { position = vec2 (platformPos.x - 30 * perpOffset.x) (platformPos.y - 30 * perpOffset.y)
         , width = 35
         , height = 20
+        , orientation = sidingOrientation
         }
     , teamTrackRamp =
         -- East of team track position
         { position = vec2 (teamTrackPos.x + 25 * perpOffset.x) (teamTrackPos.y + 25 * perpOffset.y)
         , width = 25
         , height = 15
+        , orientation = sidingOrientation
         }
     , trees =
         [ vec2 -50 80
