@@ -123,6 +123,7 @@ type Msg
     | SelectStockItem StockItem
     | AddToConsistFront -- Add selected stock to front
     | AddToConsistBack -- Add selected stock to back
+    | InsertInConsist Int -- Insert selected stock at index
     | RemoveFromConsist Int -- Remove item at index
     | ClearConsistBuilder
     | SetTimePickerHour Int
@@ -269,6 +270,9 @@ update msg model =
         AddToConsistBack ->
             ( updateAddToConsist False model, Cmd.none )
 
+        InsertInConsist index ->
+            ( updateInsertInConsist index model, Cmd.none )
+
         RemoveFromConsist index ->
             ( updateRemoveFromConsist index model, Cmd.none )
 
@@ -385,6 +389,84 @@ updateAddToConsist toFront model =
 
                                 else
                                     builder.items ++ [ actualStock ]
+
+                            Nothing ->
+                                builder.items
+
+                    -- Check if any of this type remain
+                    remainingOfType =
+                        newInventories
+                            |> List.filter (\inv -> inv.spawnPointId == planning.selectedSpawnPoint)
+                            |> List.head
+                            |> Maybe.map (\inv -> List.filter (\s -> s.stockType == selectedStock.stockType) inv.availableStock)
+                            |> Maybe.map List.length
+                            |> Maybe.withDefault 0
+
+                    -- Clear selection if no more of this type
+                    newSelection =
+                        if remainingOfType > 0 then
+                            builder.selectedStock
+
+                        else
+                            Nothing
+
+                    newBuilder =
+                        { builder | items = newItems, selectedStock = newSelection }
+                in
+                { model
+                    | planningState =
+                        { planning
+                            | consistBuilder = newBuilder
+                            , inventories = newInventories
+                        }
+                }
+
+
+{-| Insert selected stock into consist at specified index.
+-}
+updateInsertInConsist : Int -> Model -> Model
+updateInsertInConsist index model =
+    let
+        planning =
+            model.planningState
+
+        builder =
+            planning.consistBuilder
+    in
+    case builder.selectedStock of
+        Nothing ->
+            model
+
+        Just selectedStock ->
+            let
+                -- Find the inventory for current spawn point
+                maybeInventory =
+                    planning.inventories
+                        |> List.filter (\inv -> inv.spawnPointId == planning.selectedSpawnPoint)
+                        |> List.head
+
+                -- Check if stock of this type is available
+                stockAvailable =
+                    maybeInventory
+                        |> Maybe.map (\inv -> List.any (\s -> s.stockType == selectedStock.stockType) inv.availableStock)
+                        |> Maybe.withDefault False
+            in
+            if not stockAvailable then
+                model
+
+            else
+                let
+                    -- Take one item of this type from inventory
+                    ( maybeActualStock, newInventories ) =
+                        takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
+
+                    -- Insert at specified index
+                    newItems =
+                        case maybeActualStock of
+                            Just actualStock ->
+                                List.take index builder.items
+                                    ++ [ actualStock ]
+                                    ++ List.drop index builder.items
 
                             Nothing ->
                                 builder.items
@@ -715,6 +797,7 @@ viewMainContent model =
                     , onSelectStock = SelectStockItem
                     , onAddToFront = AddToConsistFront
                     , onAddToBack = AddToConsistBack
+                    , onInsertInConsist = InsertInConsist
                     , onRemoveFromConsist = RemoveFromConsist
                     , onClearConsist = ClearConsistBuilder
                     , onSetHour = SetTimePickerHour
