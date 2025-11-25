@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 {-| Railroad Switching Puzzle Game
 
@@ -12,6 +12,7 @@ import Html exposing (Html, button, div, span, text)
 import Html.Attributes exposing (disabled, style)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
+import Json.Encode as Encode
 import Planning.Helpers exposing (returnStockToInventory, takeStockFromInventory)
 import Planning.Types as Planning exposing (PanelMode(..), SpawnPointId(..), StockItem, StockType(..))
 import Programmer.Types as Programmer
@@ -20,9 +21,11 @@ import Programmer.View as ProgrammerView
 import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
 import Sawmill.View as SawmillView
 import Set exposing (Set)
+import Storage
 import Svg exposing (Svg, svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
+import Time
 import Train.Movement as Movement
 import Train.Spawn as Spawn
 import Train.Types exposing (ActiveTrain)
@@ -30,11 +33,21 @@ import Train.View as TrainView
 import Util.Vec2 as Vec2 exposing (Vec2)
 
 
+{-| Port to save state to localStorage.
+-}
+port saveToStorage : String -> Cmd msg
+
+
+{-| Port to clear localStorage and reload.
+-}
+port clearStorage : () -> Cmd msg
+
+
 
 -- MAIN
 
 
-main : Program () Model Msg
+main : Program (Maybe String) Model Msg
 main =
     Browser.element
         { init = init
@@ -94,25 +107,107 @@ type alias Model =
     }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( { mode = Planning
-      , gameTime = { elapsedSeconds = 6 * 60 * 60 } -- Start at 06:00
-      , camera =
-            { center = Vec2.vec2 -50 60
-            , zoom = 2.0 -- 2 pixels per meter
+init : Maybe String -> ( Model, Cmd Msg )
+init maybeJson =
+    case maybeJson of
+        Just jsonString ->
+            case Decode.decodeString Storage.decodeSavedState jsonString of
+                Ok saved ->
+                    ( restoreModel saved, Cmd.none )
+
+                Err _ ->
+                    -- Corrupt data, start fresh
+                    ( defaultModel, Cmd.none )
+
+        Nothing ->
+            ( defaultModel, Cmd.none )
+
+
+{-| Default model for first-time users or corrupt saved data.
+-}
+defaultModel : Model
+defaultModel =
+    { mode = Planning
+    , gameTime = { elapsedSeconds = 6 * 60 * 60 } -- Start at 06:00
+    , camera =
+        { center = Vec2.vec2 -50 60
+        , zoom = 2.0 -- 2 pixels per meter
+        }
+    , viewportSize = { width = 800, height = 600 }
+    , turnoutState = Normal
+    , hoveredElement = Nothing
+    , dragState = Nothing
+    , planningState = Planning.initPlanningState
+    , activeTrains = []
+    , spawnedTrainIds = Set.empty
+    , timeMultiplier = 1.0
+    }
+
+
+{-| Restore model from saved state.
+-}
+restoreModel : Storage.SavedState -> Model
+restoreModel saved =
+    let
+        mode =
+            case saved.mode of
+                "Running" ->
+                    Running
+
+                "Paused" ->
+                    Paused
+
+                _ ->
+                    Planning
+
+        turnoutState =
+            case saved.turnoutState of
+                "Reverse" ->
+                    Reverse
+
+                _ ->
+                    Normal
+
+        -- Restore active trains by reconstructing routes
+        activeTrains =
+            List.map
+                (\t ->
+                    { id = t.id
+                    , consist = t.consist
+                    , position = t.position
+                    , speed = t.speed
+                    , route = Storage.routeForSpawnPoint t.spawnPoint
+                    }
+                )
+                saved.activeTrains
+
+        -- Restore planning state
+        planningState =
+            let
+                base =
+                    Planning.initPlanningState
+            in
+            { base
+                | scheduledTrains = saved.scheduledTrains
+                , inventories = saved.inventories
+                , nextTrainId = saved.nextTrainId
             }
-      , viewportSize = { width = 800, height = 600 }
-      , turnoutState = Normal
-      , hoveredElement = Nothing
-      , dragState = Nothing
-      , planningState = Planning.initPlanningState
-      , activeTrains = []
-      , spawnedTrainIds = Set.empty
-      , timeMultiplier = 1.0
-      }
-    , Cmd.none
-    )
+    in
+    { mode = mode
+    , gameTime = { elapsedSeconds = saved.gameTime }
+    , camera =
+        { center = Vec2.vec2 saved.cameraX saved.cameraY
+        , zoom = saved.cameraZoom
+        }
+    , viewportSize = { width = 800, height = 600 }
+    , turnoutState = turnoutState
+    , hoveredElement = Nothing
+    , dragState = Nothing
+    , planningState = planningState
+    , activeTrains = activeTrains
+    , spawnedTrainIds = Set.fromList saved.spawnedTrainIds
+    , timeMultiplier = saved.timeMultiplier
+    }
 
 
 
@@ -130,6 +225,9 @@ type Msg
     | Drag Float Float -- Current screen x, y during drag
     | EndDrag -- Mouseup or mouseleave
     | NoOp
+      -- Storage messages
+    | SaveTick Time.Posix
+    | ResetGame
       -- Planning panel messages
     | ClosePlanningPanel
     | SelectSpawnPoint SpawnPointId
@@ -445,6 +543,100 @@ update msg model =
 
         SaveProgram ->
             ( updateSaveProgram model, Cmd.none )
+
+        SaveTick _ ->
+            ( model, saveToStorage (Encode.encode 0 (extractSavedState model)) )
+
+        ResetGame ->
+            ( model, clearStorage () )
+
+
+
+-- STORAGE HELPERS
+
+
+{-| Extract current state for saving.
+-}
+extractSavedState : Model -> Encode.Value
+extractSavedState model =
+    let
+        modeString =
+            case model.mode of
+                Planning ->
+                    "Planning"
+
+                Running ->
+                    "Running"
+
+                Paused ->
+                    "Paused"
+
+        turnoutString =
+            case model.turnoutState of
+                Normal ->
+                    "Normal"
+
+                Reverse ->
+                    "Reverse"
+
+        -- Filter out trains that are exiting (position > route length)
+        validTrains =
+            model.activeTrains
+                |> List.filter (\t -> t.position <= t.route.totalLength)
+
+        savedTrains =
+            List.map
+                (\t ->
+                    { id = t.id
+                    , consist = t.consist
+                    , position = t.position
+                    , speed = t.speed
+                    , spawnPoint = spawnPointForRoute t.route
+                    }
+                )
+                validTrains
+
+        savedState : Storage.SavedState
+        savedState =
+            { gameTime = model.gameTime.elapsedSeconds
+            , mode = modeString
+            , turnoutState = turnoutString
+            , activeTrains = savedTrains
+            , spawnedTrainIds = Set.toList model.spawnedTrainIds
+            , scheduledTrains = model.planningState.scheduledTrains
+            , inventories = model.planningState.inventories
+            , nextTrainId = model.planningState.nextTrainId
+            , cameraX = model.camera.center.x
+            , cameraY = model.camera.center.y
+            , cameraZoom = model.camera.zoom
+            , timeMultiplier = model.timeMultiplier
+            }
+    in
+    Storage.encodeSavedState savedState
+
+
+{-| Determine spawn point from route (by checking route direction).
+-}
+spawnPointForRoute : Train.Types.Route -> SpawnPointId
+spawnPointForRoute route =
+    -- Check first segment orientation to determine direction
+    case List.head route.segments of
+        Just segment ->
+            case segment.geometry of
+                Train.Types.StraightGeometry geo ->
+                    -- East-to-West starts heading West (positive X direction)
+                    if geo.orientation > pi / 2 && geo.orientation < 3 * pi / 2 then
+                        WestStation
+
+                    else
+                        EastStation
+
+                Train.Types.ArcGeometry _ ->
+                    -- Default to EastStation for arcs
+                    EastStation
+
+        Nothing ->
+            EastStation
 
 
 
@@ -1038,11 +1230,17 @@ swapAt i j list =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    if model.mode == Running then
-        Browser.Events.onAnimationFrameDelta Tick
+    Sub.batch
+        [ -- Save every second
+          Time.every 1000 SaveTick
 
-    else
-        Sub.none
+        -- Animation when running
+        , if model.mode == Running then
+            Browser.Events.onAnimationFrameDelta Tick
+
+          else
+            Sub.none
+        ]
 
 
 
@@ -1100,6 +1298,7 @@ viewRightPanel model =
                 , onRemoveTrain = RemoveScheduledTrain
                 , onSelectTrain = SelectScheduledTrain
                 , onOpenProgrammer = OpenProgrammer
+                , onReset = ResetGame
                 }
 
         ProgrammerView trainId ->

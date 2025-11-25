@@ -41,6 +41,7 @@ viewPlanningPanel :
     , onRemoveTrain : Int -> msg
     , onSelectTrain : Int -> msg
     , onOpenProgrammer : Int -> msg
+    , onReset : msg
     }
     -> Html msg
 viewPlanningPanel config =
@@ -54,7 +55,7 @@ viewPlanningPanel config =
         , style "color" "#e0e0e0"
         , style "overflow-y" "auto"
         ]
-        [ viewPanelHeader config.onClose
+        [ viewPanelHeader config.onClose config.onReset
         , viewSpawnPointSelector config.state.selectedSpawnPoint config.onSelectSpawnPoint
         , viewScheduledTrains config.state config.onRemoveTrain config.onSelectTrain config.onOpenProgrammer
         , viewAvailableStock config.state config.onSelectStock
@@ -63,8 +64,8 @@ viewPlanningPanel config =
         ]
 
 
-viewPanelHeader : msg -> Html msg
-viewPanelHeader onClose =
+viewPanelHeader : msg -> msg -> Html msg
+viewPanelHeader onClose onReset =
     div
         [ style "display" "flex"
         , style "justify-content" "space-between"
@@ -78,16 +79,33 @@ viewPanelHeader onClose =
             , style "font-size" "16px"
             ]
             [ text "Train Planning" ]
-        , button
-            [ style "background" "transparent"
-            , style "border" "none"
-            , style "color" "#e0e0e0"
-            , style "font-size" "20px"
-            , style "cursor" "pointer"
-            , style "padding" "4px 8px"
-            , onClick onClose
+        , div
+            [ style "display" "flex"
+            , style "gap" "8px"
+            , style "align-items" "center"
             ]
-            [ text "X" ]
+            [ button
+                [ style "background" "#4a3030"
+                , style "border" "1px solid #6a4040"
+                , style "color" "#e0e0e0"
+                , style "font-size" "12px"
+                , style "cursor" "pointer"
+                , style "padding" "4px 8px"
+                , style "border-radius" "4px"
+                , onClick onReset
+                ]
+                [ text "Start Fresh" ]
+            , button
+                [ style "background" "transparent"
+                , style "border" "none"
+                , style "color" "#e0e0e0"
+                , style "font-size" "20px"
+                , style "cursor" "pointer"
+                , style "padding" "4px 8px"
+                , onClick onClose
+                ]
+                [ text "X" ]
+            ]
         ]
 
 

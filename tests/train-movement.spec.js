@@ -8,8 +8,8 @@ test.describe('Train Movement', () => {
   });
 
   test('Start button is disabled in Planning mode', async ({ page }) => {
-    // Find the Start button in the header
-    const playButton = page.getByRole('button', { name: 'Start' });
+    // Find the Start button in the header (exact match to avoid matching "Start Fresh")
+    const playButton = page.getByRole('button', { name: 'Start', exact: true });
     await expect(playButton).toBeVisible();
 
     // Button should be disabled in Planning mode
@@ -25,7 +25,7 @@ test.describe('Train Movement', () => {
     await page.waitForTimeout(200);
 
     // Now button should be enabled
-    const playButton = page.getByRole('button', { name: 'Start' });
+    const playButton = page.getByRole('button', { name: 'Start', exact: true });
     await expect(playButton).toBeEnabled();
 
     // Click to start simulation
@@ -36,7 +36,7 @@ test.describe('Train Movement', () => {
 
     // Click to pause simulation
     await page.getByRole('button', { name: 'Pause' }).click();
-    await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
   });
 
   test('Time display shows initial time of 06:00:00', async ({ page }) => {
@@ -51,7 +51,7 @@ test.describe('Train Movement', () => {
     await page.locator('div:has-text("Train Planning") >> button:has-text("X")').first().click();
 
     // Start simulation
-    const playButton = page.getByRole('button', { name: 'Start' });
+    const playButton = page.getByRole('button', { name: 'Start', exact: true });
     await playButton.click();
 
     // Wait a few seconds
@@ -89,7 +89,7 @@ test.describe('Train Movement', () => {
     await expect(canvas).toBeVisible();
 
     // Start simulation
-    const playButton = page.getByRole('button', { name: 'Start' });
+    const playButton = page.getByRole('button', { name: 'Start', exact: true });
     await expect(playButton).toBeEnabled();
     await playButton.click();
 
@@ -118,7 +118,7 @@ test.describe('Train Movement', () => {
     await page.locator('div:has-text("Train Planning") >> button:has-text("X")').first().click();
 
     // Start simulation and wait for train to appear
-    await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
     await page.waitForTimeout(2000);
 
     // Get the canvas
@@ -160,7 +160,7 @@ test.describe('Train Movement', () => {
     const canvas = page.locator('svg').first();
 
     // Start simulation
-    await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
 
     // Wait for train to spawn
     await page.waitForTimeout(2500);
@@ -223,7 +223,7 @@ test.describe('Train Movement', () => {
     await expect(trainRows).toHaveCount(2);
 
     // Start simulation
-    await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
 
     // Wait for both trains to spawn
     await page.waitForTimeout(3000);
