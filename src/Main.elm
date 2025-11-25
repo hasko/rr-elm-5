@@ -184,6 +184,32 @@ update msg model =
                     in
                     ( { model | turnoutState = newState }, Cmd.none )
 
+                TunnelPortalId ->
+                    -- Open planning panel with East Station selected
+                    let
+                        planning =
+                            model.planningState
+                    in
+                    ( { model
+                        | mode = Planning
+                        , planningState = { planning | selectedSpawnPoint = EastStation }
+                      }
+                    , Cmd.none
+                    )
+
+                WestTunnelPortalId ->
+                    -- Open planning panel with West Station selected
+                    let
+                        planning =
+                            model.planningState
+                    in
+                    ( { model
+                        | mode = Planning
+                        , planningState = { planning | selectedSpawnPoint = WestStation }
+                      }
+                    , Cmd.none
+                    )
+
                 _ ->
                     ( model, Cmd.none )
 
