@@ -8,8 +8,10 @@ Main entry point and application shell.
 
 import Browser
 import Browser.Events
+import Camera
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (style)
+import Html.Events
 import Json.Decode as Decode
 import Planning.Helpers exposing (returnStockToInventory, takeStockFromInventory)
 import Planning.Types as Planning exposing (PanelMode(..), SpawnPointId(..), StockItem, StockType(..))
@@ -56,12 +58,6 @@ type alias GameTime =
     }
 
 
-type alias Camera =
-    { center : Vec2 -- World coordinates
-    , zoom : Float -- Pixels per meter
-    }
-
-
 type alias DragState =
     { startScreenPos : Vec2 -- Screen position where drag started
     , startCameraCenter : Vec2 -- Camera center when drag started
@@ -71,7 +67,7 @@ type alias DragState =
 type alias Model =
     { mode : GameMode
     , gameTime : GameTime
-    , camera : Camera
+    , camera : Camera.Camera
     , viewportSize : { width : Float, height : Float }
 
     -- Sawmill puzzle state
@@ -90,10 +86,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { mode = Planning
       , gameTime = { day = 0, hour = 6, minute = 0 }
-      , camera =
-            { center = Vec2.vec2 -50 60
-            , zoom = 2.0 -- 2 pixels per meter
-            }
+      , camera = Camera.init (Vec2.vec2 -50 60) 2.0
       , viewportSize = { width = 800, height = 600 }
       , turnoutState = Normal
       , hoveredElement = Nothing
@@ -118,6 +111,7 @@ type Msg
     | StartDrag Float Float -- Screen x, y where mousedown occurred
     | Drag Float Float -- Current screen x, y during drag
     | EndDrag -- Mouseup or mouseleave
+    | Zoom Float Float Float -- deltaY, mouseX, mouseY for scroll wheel zoom
     | NoOp
       -- Planning panel messages
     | ClosePlanningPanel
@@ -269,6 +263,9 @@ update msg model =
 
         EndDrag ->
             ( { model | dragState = Nothing }, Cmd.none )
+
+        Zoom deltaY mouseX mouseY ->
+            ( updateZoom deltaY mouseX mouseY model, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
@@ -766,6 +763,33 @@ updateRemoveScheduledTrain trainId model =
 
 
 
+-- CAMERA HELPERS
+
+
+{-| Handle zoom with scroll wheel, keeping cursor position fixed.
+-}
+updateZoom : Float -> Float -> Float -> Model -> Model
+updateZoom deltaY mouseX mouseY model =
+    let
+        -- Mouse position is relative to SVG element (offsetX/offsetY)
+        -- SVG element fills the left side of the screen
+        svgWidth =
+            model.viewportSize.width - 400
+
+        svgHeight =
+            model.viewportSize.height
+
+        -- Screen coords relative to SVG center
+        mouseOffset =
+            Vec2.vec2 (mouseX - svgWidth / 2) (mouseY - svgHeight / 2)
+
+        newCamera =
+            Camera.zoomAtPoint Camera.defaultZoomConfig deltaY mouseOffset model.camera
+    in
+    { model | camera = newCamera }
+
+
+
 -- PROGRAMMER HELPERS
 
 
@@ -1259,6 +1283,8 @@ viewCanvas model =
         , SvgE.on "mousemove" (decodeMousePosition Drag)
         , SvgE.on "mouseup" (Decode.succeed EndDrag)
         , SvgE.on "mouseleave" (Decode.succeed EndDrag)
+        , Html.Events.preventDefaultOn "wheel"
+            (Decode.map (\msg -> ( msg, True )) (decodeWheelEvent Zoom))
         ]
         [ -- Grid for reference
           viewGrid
@@ -1283,6 +1309,16 @@ viewCanvas model =
 decodeMousePosition : (Float -> Float -> msg) -> Decode.Decoder msg
 decodeMousePosition toMsg =
     Decode.map2 toMsg
+        (Decode.field "offsetX" Decode.float)
+        (Decode.field "offsetY" Decode.float)
+
+
+{-| Decode wheel event for zoom.
+-}
+decodeWheelEvent : (Float -> Float -> Float -> msg) -> Decode.Decoder msg
+decodeWheelEvent toMsg =
+    Decode.map3 toMsg
+        (Decode.field "deltaY" Decode.float)
         (Decode.field "offsetX" Decode.float)
         (Decode.field "offsetY" Decode.float)
 
