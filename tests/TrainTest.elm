@@ -199,6 +199,7 @@ spawnTests =
                               , consist = [ { id = 1, stockType = Locomotive } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 10 }
+                              , program = []
                               }
                             ]
 
@@ -215,6 +216,7 @@ spawnTests =
                               , consist = [ { id = 1, stockType = Locomotive } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 10 }
+                              , program = []
                               }
                             ]
 
@@ -231,6 +233,7 @@ spawnTests =
                               , consist = [ { id = 1, stockType = Locomotive } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 10 }
+                              , program = []
                               }
                             ]
 
@@ -250,11 +253,13 @@ spawnTests =
                               , consist = [ { id = 1, stockType = Locomotive } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 5 }
+                              , program = []
                               }
                             , { id = 2
                               , consist = [ { id = 2, stockType = Locomotive } ]
                               , spawnPoint = WestStation
                               , departureTime = { day = 0, hour = 0, minute = 5 }
+                              , program = []
                               }
                             ]
 
@@ -271,6 +276,7 @@ spawnTests =
                               , consist = [ { id = 1, stockType = Locomotive } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 0 }
+                              , program = []
                               }
                             ]
 
@@ -292,6 +298,7 @@ spawnTests =
                               , consist = [ { id = 1, stockType = Locomotive } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 0 }
+                              , program = []
                               }
                             ]
 
