@@ -1,16 +1,16 @@
 # Implementation Progress
 
 ## Phase 1: Project Setup & Foundation
-- [ ] 1.1 Build Configuration
-  - [ ] Create `elm.json` with dependencies
-  - [ ] Create `package.json` with dev scripts
-  - [ ] Create `index.html` shell
-  - [ ] Verify `npm run dev` works
-- [ ] 1.2 Core Utilities
-  - [ ] `src/Util/Vec2.elm` - 2D vector operations
-  - [ ] `src/Util/Transform.elm` - SVG transform helpers
-- [ ] 1.3 Application Shell
-  - [ ] `src/Main.elm` - Browser.application with placeholder SVG
+- [x] 1.1 Build Configuration
+  - [x] Create `elm.json` with dependencies
+  - [x] Create `package.json` with dev scripts
+  - [x] Create `index.html` shell
+  - [x] Verify `npm run dev` works
+- [x] 1.2 Core Utilities
+  - [x] `src/Util/Vec2.elm` - 2D vector operations
+  - [x] `src/Util/Transform.elm` - SVG transform helpers
+- [x] 1.3 Application Shell
+  - [x] `src/Main.elm` - Browser.element with placeholder SVG
 
 ## Phase 2: Track System
 - [ ] 2.1 Track Geometry
