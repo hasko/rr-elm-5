@@ -8,8 +8,9 @@ Main entry point and application shell.
 
 import Browser
 import Browser.Events
-import Html exposing (Html, div, text)
-import Html.Attributes exposing (style)
+import Html exposing (Html, button, div, span, text)
+import Html.Attributes exposing (disabled, style)
+import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Planning.Helpers exposing (returnStockToInventory, takeStockFromInventory)
 import Planning.Types as Planning exposing (PanelMode(..), SpawnPointId(..), StockItem, StockType(..))
@@ -18,10 +19,14 @@ import Planning.View as PlanningView
 import Programmer.View as ProgrammerView
 import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
 import Sawmill.View as SawmillView
+import Set exposing (Set)
 import Svg exposing (Svg, svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
-import Time
+import Train.Movement as Movement
+import Train.Spawn as Spawn
+import Train.Types exposing (ActiveTrain)
+import Train.View as TrainView
 import Util.Vec2 as Vec2 exposing (Vec2)
 
 
@@ -50,9 +55,7 @@ type GameMode
 
 
 type alias GameTime =
-    { day : Int -- 0 = Monday, 4 = Friday
-    , hour : Int -- 0-23
-    , minute : Int -- 0-59
+    { elapsedSeconds : Float -- Total simulation time in seconds
     }
 
 
@@ -83,13 +86,18 @@ type alias Model =
 
     -- Planning state
     , planningState : Planning.PlanningState
+
+    -- Active trains
+    , activeTrains : List ActiveTrain
+    , spawnedTrainIds : Set Int
+    , timeMultiplier : Float
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { mode = Planning
-      , gameTime = { day = 0, hour = 6, minute = 0 }
+      , gameTime = { elapsedSeconds = 6 * 60 * 60 } -- Start at 06:00
       , camera =
             { center = Vec2.vec2 -50 60
             , zoom = 2.0 -- 2 pixels per meter
@@ -99,6 +107,9 @@ init _ =
       , hoveredElement = Nothing
       , dragState = Nothing
       , planningState = Planning.initPlanningState
+      , activeTrains = []
+      , spawnedTrainIds = Set.empty
+      , timeMultiplier = 1.0
       }
     , Cmd.none
     )
@@ -150,7 +161,46 @@ update msg model =
     case msg of
         Tick deltaMs ->
             if model.mode == Running then
-                ( { model | gameTime = advanceGameTime deltaMs model.gameTime }
+                let
+                    -- Cap delta to prevent teleportation when returning from background tab
+                    cappedDeltaMs =
+                        min deltaMs 100
+
+                    -- Apply time multiplier
+                    scaledDeltaSeconds =
+                        (cappedDeltaMs / 1000) * model.timeMultiplier
+
+                    -- Advance simulation time
+                    newElapsed =
+                        model.gameTime.elapsedSeconds + scaledDeltaSeconds
+
+                    -- Spawn new trains
+                    newTrains =
+                        Spawn.checkSpawns
+                            newElapsed
+                            model.planningState.scheduledTrains
+                            model.spawnedTrainIds
+
+                    -- Update existing train positions
+                    updatedTrains =
+                        model.activeTrains
+                            |> List.map (Movement.updateTrain scaledDeltaSeconds)
+                            |> List.filter (not << Movement.shouldDespawn)
+
+                    -- Combine trains
+                    allTrains =
+                        updatedTrains ++ newTrains
+
+                    -- Track newly spawned IDs
+                    newSpawnedIds =
+                        Set.union model.spawnedTrainIds
+                            (Set.fromList (List.map .id newTrains))
+                in
+                ( { model
+                    | gameTime = { elapsedSeconds = newElapsed }
+                    , activeTrains = allTrains
+                    , spawnedTrainIds = newSpawnedIds
+                  }
                 , Cmd.none
                 )
 
@@ -983,45 +1033,6 @@ swapAt i j list =
             list
 
 
-{-| Advance game time. 1 real second = 1 game minute.
--}
-advanceGameTime : Float -> GameTime -> GameTime
-advanceGameTime deltaMs time =
-    let
-        -- Convert delta to game minutes (1 real ms = 1/1000 real sec = 1/1000 game min)
-        deltaMinutes =
-            deltaMs / 1000
-
-        totalMinutes =
-            toFloat time.minute + deltaMinutes
-
-        newMinute =
-            floor totalMinutes |> modBy 60
-
-        carryHours =
-            floor totalMinutes // 60
-
-        totalHours =
-            time.hour + carryHours
-
-        newHour =
-            modBy 24 totalHours
-
-        carryDays =
-            totalHours // 24
-
-        newDay =
-            modBy 5 (time.day + carryDays)
-
-        -- Week is Mon-Fri (0-4)
-    in
-    { day = newDay
-    , hour = newHour
-    , minute = newMinute
-    }
-
-
-
 -- SUBSCRIPTIONS
 
 
@@ -1126,39 +1137,83 @@ viewHeader model =
             [ text "Railroad Switching Puzzle - Sawmill" ]
         , div [ style "display" "flex", style "gap" "20px", style "align-items" "center" ]
             [ viewGameTime model.gameTime
+            , viewPlayPauseButton model.mode
             , viewModeIndicator model.mode
             ]
         ]
 
 
+viewPlayPauseButton : GameMode -> Html Msg
+viewPlayPauseButton mode =
+    let
+        ( label, bgColor, isDisabled ) =
+            case mode of
+                Planning ->
+                    ( "Start", "#666", True )
+
+                Running ->
+                    ( "Pause", "#ffaa4a", False )
+
+                Paused ->
+                    ( "Start", "#4aff6a", False )
+    in
+    button
+        [ onClick TogglePlayPause
+        , disabled isDisabled
+        , style "background" bgColor
+        , style "color" "#000"
+        , style "border" "none"
+        , style "padding" "6px 16px"
+        , style "border-radius" "4px"
+        , style "font-weight" "bold"
+        , style "cursor"
+            (if isDisabled then
+                "not-allowed"
+
+             else
+                "pointer"
+            )
+        , style "opacity"
+            (if isDisabled then
+                "0.5"
+
+             else
+                "1"
+            )
+        , style "font-family" "monospace"
+        ]
+        [ text label ]
+
+
 viewGameTime : GameTime -> Html Msg
 viewGameTime time =
     let
-        dayName =
-            case time.day of
-                0 ->
-                    "Mon"
+        totalSeconds =
+            floor time.elapsedSeconds
 
-                1 ->
-                    "Tue"
+        hours =
+            modBy 24 (totalSeconds // 3600)
 
-                2 ->
-                    "Wed"
+        minutes =
+            modBy 60 (totalSeconds // 60)
 
-                3 ->
-                    "Thu"
-
-                _ ->
-                    "Fri"
+        seconds =
+            modBy 60 totalSeconds
 
         hourStr =
-            String.padLeft 2 '0' (String.fromInt time.hour)
+            String.padLeft 2 '0' (String.fromInt hours)
 
-        minuteStr =
-            String.padLeft 2 '0' (String.fromInt time.minute)
+        minStr =
+            String.padLeft 2 '0' (String.fromInt minutes)
+
+        secStr =
+            String.padLeft 2 '0' (String.fromInt seconds)
     in
     div []
-        [ text (dayName ++ " " ++ hourStr ++ ":" ++ minuteStr) ]
+        [ text (hourStr ++ ":" ++ minStr)
+        , span [ style "font-size" "0.7em", style "opacity" "0.7" ]
+            [ text (":" ++ secStr) ]
+        ]
 
 
 viewModeIndicator : GameMode -> Html Msg
@@ -1272,6 +1327,9 @@ viewCanvas model =
             , onElementUnhover = ElementUnhovered
             , noop = NoOp
             }
+
+        -- Active trains
+        , TrainView.viewTrains model.activeTrains
 
         -- Tooltip (rendered last so it's on top)
         , tooltipView

@@ -425,7 +425,21 @@ viewStockSideProfile stockType =
                 ]
 
             Flatbed ->
-                [ Svg.rect [ SvgA.x "2", SvgA.y "14", SvgA.width "56", SvgA.height "6", SvgA.fill "#6a5a4a" ] []
+                [ -- Deck
+                  Svg.rect [ SvgA.x "2", SvgA.y "14", SvgA.width "56", SvgA.height "6", SvgA.fill "#6a5a4a" ] []
+
+                -- Rungen (stakes) - 8 equally spaced, outermost at corners
+                -- Deck spans x=2 to x=58, stakes at: 2, 10, 18, 26, 34, 42, 50, 58 (spacing = 8)
+                , Svg.rect [ SvgA.x "2", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+                , Svg.rect [ SvgA.x "10", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+                , Svg.rect [ SvgA.x "18", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+                , Svg.rect [ SvgA.x "26", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+                , Svg.rect [ SvgA.x "34", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+                , Svg.rect [ SvgA.x "42", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+                , Svg.rect [ SvgA.x "50", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+                , Svg.rect [ SvgA.x "56", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+
+                -- Wheels
                 , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
                 , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
                 ]
