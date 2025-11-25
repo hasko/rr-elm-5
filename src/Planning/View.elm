@@ -30,6 +30,7 @@ viewPlanningPanel :
     , onSelectStock : StockItem -> msg
     , onAddToFront : msg
     , onAddToBack : msg
+    , onInsertInConsist : Int -> msg
     , onRemoveFromConsist : Int -> msg
     , onClearConsist : msg
     , onSetHour : Int -> msg
@@ -55,7 +56,7 @@ viewPlanningPanel config =
         , viewSpawnPointSelector config.state.selectedSpawnPoint config.onSelectSpawnPoint
         , viewScheduledTrains config.state config.onRemoveTrain config.onSelectTrain
         , viewAvailableStock config.state config.onSelectStock
-        , viewConsistBuilder config.state.consistBuilder config.onAddToFront config.onAddToBack config.onRemoveFromConsist config.onClearConsist
+        , viewConsistBuilder config.state.consistBuilder config.onAddToFront config.onAddToBack config.onInsertInConsist config.onRemoveFromConsist config.onClearConsist
         , viewScheduleControls config.state config.onSetDay config.onSetHour config.onSetMinute config.onSchedule
         ]
 
@@ -399,8 +400,15 @@ viewStockSideProfile stockType =
         )
 
 
-viewConsistBuilder : ConsistBuilder -> msg -> msg -> (Int -> msg) -> msg -> Html msg
-viewConsistBuilder builder onAddFront onAddBack onRemove onClear =
+getItemAt : Int -> List a -> Maybe a
+getItemAt index list =
+    list
+        |> List.drop index
+        |> List.head
+
+
+viewConsistBuilder : ConsistBuilder -> msg -> msg -> (Int -> msg) -> (Int -> msg) -> msg -> Html msg
+viewConsistBuilder builder onAddFront onAddBack onInsert onRemove onClear =
     let
         hasSelection =
             builder.selectedStock /= Nothing
@@ -456,10 +464,20 @@ viewConsistBuilder builder onAddFront onAddBack onRemove onClear =
                 [ viewAddButton hasSelection onAddBack ]
 
              else
-                -- [+] items... [+]
+                -- [+] [item] [+] [item] [+] ... [+]
                 [ viewAddButton hasSelection onAddFront ]
-                    ++ List.indexedMap (viewConsistItem onRemove) items
-                    ++ [ viewAddButton hasSelection onAddBack ]
+                    ++ List.concatMap
+                        (\index ->
+                            case getItemAt index items of
+                                Just item ->
+                                    [ viewConsistItem onRemove index item
+                                    , viewAddButton hasSelection (onInsert (index + 1))
+                                    ]
+
+                                Nothing ->
+                                    []
+                        )
+                        (List.range 0 (List.length items - 1))
             )
         , case builder.selectedStock of
             Just stock ->
