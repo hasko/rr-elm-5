@@ -73,6 +73,8 @@
 - [ ] 6.1 World State
 - [ ] 6.2 Simulation Tick
 - [ ] 6.3 Spawn/Despawn
+- [ ] 6.4 Turnout Occupation Detection
+  - [ ] Disable manual turnout switching when train is on turnout
 
 ## Phase 7: Camera & View
 - [x] 7.1 Camera
