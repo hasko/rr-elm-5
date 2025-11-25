@@ -642,14 +642,11 @@ updateSelectScheduledTrain trainId model =
                 currentItems =
                     planning.consistBuilder.items
 
-                inventoriesAfterReturn =
+                newInventories =
                     returnStockToInventory planning.selectedSpawnPoint currentItems planning.inventories
 
-                -- Return train's consist to inventory (it will be "borrowed" for editing)
-                newInventories =
-                    returnStockToInventory train.spawnPoint train.consist inventoriesAfterReturn
-
-                -- Remove train from scheduled list temporarily
+                -- Keep train in scheduled list but mark as being edited
+                -- Stock remains "in use" by the train, not returned to inventory
                 newTrains =
                     planning.scheduledTrains
                         |> List.filter (\t -> t.id /= trainId)
