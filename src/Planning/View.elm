@@ -4,8 +4,9 @@ module Planning.View exposing (viewPlanningPanel)
 -}
 
 import Html exposing (Html, button, div, label, option, select, span, text)
-import Html.Attributes exposing (selected, style, value)
+import Html.Attributes exposing (attribute, disabled, id, selected, style, value)
 import Html.Events exposing (onClick, onInput)
+import Json.Decode as Decode
 import Planning.Types as Planning
     exposing
         ( ConsistBuilder
@@ -27,14 +28,16 @@ viewPlanningPanel :
     , onClose : msg
     , onSelectSpawnPoint : SpawnPointId -> msg
     , onSelectStock : StockItem -> msg
-    , onPlaceInSlot : Int -> msg
-    , onRemoveFromSlot : Int -> msg
+    , onAddToFront : msg
+    , onAddToBack : msg
+    , onRemoveFromConsist : Int -> msg
     , onClearConsist : msg
     , onSetHour : Int -> msg
     , onSetMinute : Int -> msg
     , onSetDay : Int -> msg
     , onSchedule : msg
     , onRemoveTrain : Int -> msg
+    , onSelectTrain : Int -> msg
     }
     -> Html msg
 viewPlanningPanel config =
@@ -50,9 +53,9 @@ viewPlanningPanel config =
         ]
         [ viewPanelHeader config.onClose
         , viewSpawnPointSelector config.state.selectedSpawnPoint config.onSelectSpawnPoint
-        , viewScheduledTrains config.state config.onRemoveTrain
+        , viewScheduledTrains config.state config.onRemoveTrain config.onSelectTrain
         , viewAvailableStock config.state config.onSelectStock
-        , viewConsistBuilder config.state.consistBuilder config.onPlaceInSlot config.onRemoveFromSlot config.onClearConsist
+        , viewConsistBuilder config.state.consistBuilder config.onAddToFront config.onAddToBack config.onRemoveFromConsist config.onClearConsist
         , viewScheduleControls config.state config.onSetDay config.onSetHour config.onSetMinute config.onSchedule
         ]
 
@@ -97,7 +100,7 @@ viewSpawnPointSelector selected onSelect =
             , style "font-size" "12px"
             , style "color" "#888"
             ]
-            [ text "SPAWN POINT" ]
+            [ text "STATION" ]
         , div [ style "display" "flex", style "gap" "8px" ]
             [ viewSpawnPointButton EastStation "East Station" selected onSelect
             , viewSpawnPointButton WestStation "West Station" selected onSelect
@@ -137,8 +140,8 @@ viewSpawnPointButton spawnId labelText selected onSelect =
         [ text labelText ]
 
 
-viewScheduledTrains : PlanningState -> (Int -> msg) -> Html msg
-viewScheduledTrains state onRemove =
+viewScheduledTrains : PlanningState -> (Int -> msg) -> (Int -> msg) -> Html msg
+viewScheduledTrains state onRemove onSelect =
     let
         trainsForSpawnPoint =
             state.scheduledTrains
@@ -163,20 +166,41 @@ viewScheduledTrains state onRemove =
                 [ text "No trains scheduled" ]
 
           else
-            div [] (List.map (viewScheduledTrainItem onRemove) trainsForSpawnPoint)
+            div [] (List.map (viewScheduledTrainItem onRemove onSelect state.editingTrainId) trainsForSpawnPoint)
         ]
 
 
-viewScheduledTrainItem : (Int -> msg) -> ScheduledTrain -> Html msg
-viewScheduledTrainItem onRemove train =
+viewScheduledTrainItem : (Int -> msg) -> (Int -> msg) -> Maybe Int -> ScheduledTrain -> Html msg
+viewScheduledTrainItem onRemove onSelect editingId train =
+    let
+        isEditing =
+            editingId == Just train.id
+    in
     div
-        [ style "display" "flex"
+        [ attribute "data-testid" ("train-row-" ++ String.fromInt train.id)
+        , style "display" "flex"
         , style "justify-content" "space-between"
         , style "align-items" "center"
         , style "padding" "6px 8px"
-        , style "background" "#252540"
+        , style "background"
+            (if isEditing then
+                "#2a4a6e"
+
+             else
+                "#252540"
+            )
+        , style "border" "2px solid"
+        , style "border-color"
+            (if isEditing then
+                "#4a9eff"
+
+             else
+                "transparent"
+            )
         , style "border-radius" "4px"
         , style "margin-bottom" "4px"
+        , style "cursor" "pointer"
+        , onClick (onSelect train.id)
         ]
         [ div []
             [ span [ style "font-weight" "bold" ]
@@ -191,7 +215,7 @@ viewScheduledTrainItem onRemove train =
             , style "padding" "4px 8px"
             , style "border-radius" "2px"
             , style "cursor" "pointer"
-            , onClick (onRemove train.id)
+            , Html.Events.stopPropagationOn "click" (Decode.succeed ( onRemove train.id, True ))
             ]
             [ text "X" ]
         ]
@@ -375,8 +399,15 @@ viewStockSideProfile stockType =
         )
 
 
-viewConsistBuilder : ConsistBuilder -> (Int -> msg) -> (Int -> msg) -> msg -> Html msg
-viewConsistBuilder builder onPlaceInSlot onRemoveFromSlot onClear =
+viewConsistBuilder : ConsistBuilder -> msg -> msg -> (Int -> msg) -> msg -> Html msg
+viewConsistBuilder builder onAddFront onAddBack onRemove onClear =
+    let
+        hasSelection =
+            builder.selectedStock /= Nothing
+
+        items =
+            builder.items
+    in
     div
         [ style "padding" "12px 16px"
         , style "border-bottom" "1px solid #333"
@@ -411,8 +442,25 @@ viewConsistBuilder builder onPlaceInSlot onRemoveFromSlot onClear =
             , style "background" "#151520"
             , style "border-radius" "4px"
             , style "min-height" "50px"
+            , style "align-items" "center"
+            , style "justify-content"
+                (if List.isEmpty items then
+                    "center"
+
+                 else
+                    "flex-start"
+                )
             ]
-            (List.indexedMap (viewConsistSlot builder.selectedStock onPlaceInSlot onRemoveFromSlot) builder.slots)
+            (if List.isEmpty items then
+                -- Single centered + button when empty
+                [ viewAddButton hasSelection onAddBack ]
+
+             else
+                -- [+] items... [+]
+                [ viewAddButton hasSelection onAddFront ]
+                    ++ List.indexedMap (viewConsistItem onRemove) items
+                    ++ [ viewAddButton hasSelection onAddBack ]
+            )
         , case builder.selectedStock of
             Just stock ->
                 div
@@ -420,7 +468,7 @@ viewConsistBuilder builder onPlaceInSlot onRemoveFromSlot onClear =
                     , style "color" "#4a9eff"
                     , style "font-size" "12px"
                     ]
-                    [ text ("Selected: " ++ Planning.stockTypeName stock.stockType ++ " - click a slot to place") ]
+                    [ text ("Selected: " ++ Planning.stockTypeName stock.stockType ++ " - click + to add") ]
 
             Nothing ->
                 div
@@ -432,43 +480,119 @@ viewConsistBuilder builder onPlaceInSlot onRemoveFromSlot onClear =
         ]
 
 
-viewConsistSlot : Maybe StockItem -> (Int -> msg) -> (Int -> msg) -> Int -> Maybe StockItem -> Html msg
-viewConsistSlot selectedStock onPlaceInSlot onRemoveFromSlot index maybeStock =
-    div
-        [ style "width" "60px"
+viewAddButton : Bool -> msg -> Html msg
+viewAddButton enabled onAdd =
+    button
+        [ style "width" "36px"
         , style "height" "40px"
-        , style "border" "2px dashed #444"
+        , style "border" "2px dashed"
+        , style "border-color"
+            (if enabled then
+                "#4a9eff"
+
+             else
+                "#444"
+            )
         , style "border-radius" "4px"
+        , style "background" "transparent"
         , style "display" "flex"
         , style "align-items" "center"
         , style "justify-content" "center"
-        , style "cursor" "pointer"
-        , style "position" "relative"
-        , onClick
-            (case maybeStock of
-                Nothing ->
-                    onPlaceInSlot index
+        , style "cursor"
+            (if enabled then
+                "pointer"
 
-                Just _ ->
-                    onRemoveFromSlot index
+             else
+                "default"
             )
+        , style "flex-shrink" "0"
+        , onClick onAdd
         ]
-        (case maybeStock of
-            Just stock ->
-                [ viewStockSideProfile stock.stockType ]
+        [ span
+            [ style "color"
+                (if enabled then
+                    "#4a9eff"
 
-            Nothing ->
-                [ span
-                    [ style "color" "#444"
-                    , style "font-size" "20px"
-                    ]
-                    [ text "+" ]
-                ]
-        )
+                 else
+                    "#444"
+                )
+            , style "font-size" "20px"
+            ]
+            [ text "+" ]
+        ]
+
+
+viewConsistItem : (Int -> msg) -> Int -> StockItem -> Html msg
+viewConsistItem onRemove index item =
+    div
+        [ style "position" "relative"
+        , style "flex-shrink" "0"
+        ]
+        [ div
+            [ style "width" "60px"
+            , style "height" "40px"
+            , style "border" "2px solid #555"
+            , style "border-radius" "4px"
+            , style "display" "flex"
+            , style "align-items" "center"
+            , style "justify-content" "center"
+            , style "background" "#252540"
+            ]
+            [ viewStockSideProfile item.stockType ]
+        , button
+            [ style "position" "absolute"
+            , style "top" "-6px"
+            , style "right" "-6px"
+            , style "width" "18px"
+            , style "height" "18px"
+            , style "border-radius" "50%"
+            , style "background" "#6a2a2a"
+            , style "border" "none"
+            , style "color" "#e0e0e0"
+            , style "font-size" "10px"
+            , style "cursor" "pointer"
+            , style "display" "flex"
+            , style "align-items" "center"
+            , style "justify-content" "center"
+            , style "padding" "0"
+            , onClick (onRemove index)
+            ]
+            [ text "X" ]
+        ]
 
 
 viewScheduleControls : PlanningState -> (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> msg -> Html msg
 viewScheduleControls state onSetDay onSetHour onSetMinute onSchedule =
+    let
+        items =
+            state.consistBuilder.items
+
+        hasLoco =
+            List.any (\item -> item.stockType == Locomotive) items
+
+        isValid =
+            not (List.isEmpty items) && hasLoco
+
+        isEditing =
+            state.editingTrainId /= Nothing
+
+        buttonText =
+            if isEditing then
+                "Update Train"
+
+            else
+                "Schedule Train"
+
+        hintText =
+            if List.isEmpty items then
+                Just "Add stock to consist first"
+
+            else if not hasLoco then
+                Just "Consist needs a locomotive"
+
+            else
+                Nothing
+    in
     div
         [ style "padding" "12px 16px"
         , style "background" "#252540"
@@ -489,18 +613,51 @@ viewScheduleControls state onSetDay onSetHour onSetMinute onSchedule =
             , viewTimePicker state.timePickerHour state.timePickerMinute onSetHour onSetMinute
             ]
         , button
-            [ style "width" "100%"
+            [ id "schedule-button"
+            , attribute "data-testid" "schedule-button"
+            , style "width" "100%"
             , style "padding" "12px"
-            , style "background" "#4a9eff"
+            , style "background"
+                (if isValid then
+                    "#4a9eff"
+
+                 else
+                    "#555"
+                )
             , style "border" "none"
-            , style "color" "#fff"
+            , style "color"
+                (if isValid then
+                    "#fff"
+
+                 else
+                    "#888"
+                )
             , style "border-radius" "4px"
-            , style "cursor" "pointer"
+            , style "cursor"
+                (if isValid then
+                    "pointer"
+
+                 else
+                    "not-allowed"
+                )
             , style "font-weight" "bold"
             , style "font-size" "14px"
+            , disabled (not isValid)
             , onClick onSchedule
             ]
-            [ text "Schedule Train" ]
+            [ text buttonText ]
+        , case hintText of
+            Just hint ->
+                div
+                    [ style "margin-top" "8px"
+                    , style "font-size" "12px"
+                    , style "color" "#888"
+                    , style "text-align" "center"
+                    ]
+                    [ text hint ]
+
+            Nothing ->
+                text ""
         ]
 
 

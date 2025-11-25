@@ -77,7 +77,7 @@ type alias SpawnPointInventory =
 {-| State for the consist builder UI.
 -}
 type alias ConsistBuilder =
-    { slots : List (Maybe StockItem) -- Fixed slots, can be empty
+    { items : List StockItem -- Variable length list, no holes
     , selectedStock : Maybe StockItem -- Currently selected item to place
     }
 
@@ -93,14 +93,15 @@ type alias PlanningState =
     , timePickerMinute : Int
     , timePickerDay : Int
     , nextTrainId : Int
+    , editingTrainId : Maybe Int -- When editing existing train
     }
 
 
-{-| Empty consist builder with 5 slots.
+{-| Empty consist builder.
 -}
 emptyConsistBuilder : ConsistBuilder
 emptyConsistBuilder =
-    { slots = List.repeat 5 Nothing
+    { items = []
     , selectedStock = Nothing
     }
 
@@ -132,6 +133,7 @@ initPlanningState =
     , timePickerMinute = 0
     , timePickerDay = 0
     , nextTrainId = 1
+    , editingTrainId = Nothing
     }
 
 
