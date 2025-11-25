@@ -11,6 +11,7 @@ import Browser.Events
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (style)
 import Json.Decode as Decode
+import Planning.Helpers exposing (returnStockToInventory, takeStockFromInventory)
 import Planning.Types as Planning exposing (SpawnPointId(..), StockItem, StockType(..))
 import Planning.View as PlanningView
 import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
@@ -627,66 +628,6 @@ updateRemoveScheduledTrain trainId model =
             }
 
 
-{-| Take one stock item of a given type from a spawn point's inventory.
--}
-takeStockFromInventory : SpawnPointId -> StockType -> List Planning.SpawnPointInventory -> ( Maybe StockItem, List Planning.SpawnPointInventory )
-takeStockFromInventory spawnId stockType inventories =
-    let
-        updateInventory inv =
-            if inv.spawnPointId == spawnId then
-                let
-                    ( taken, remaining ) =
-                        takeFirst (\s -> s.stockType == stockType) inv.availableStock
-                in
-                ( taken, { inv | availableStock = remaining } )
-
-            else
-                ( Nothing, inv )
-
-        ( takenItems, newInventories ) =
-            List.map updateInventory inventories
-                |> List.unzip
-
-        takenStock =
-            takenItems |> List.filterMap identity |> List.head
-    in
-    ( takenStock, newInventories )
-
-
-{-| Return stock items to a spawn point's inventory.
--}
-returnStockToInventory : SpawnPointId -> List StockItem -> List Planning.SpawnPointInventory -> List Planning.SpawnPointInventory
-returnStockToInventory spawnId items inventories =
-    List.map
-        (\inv ->
-            if inv.spawnPointId == spawnId then
-                { inv | availableStock = inv.availableStock ++ items }
-
-            else
-                inv
-        )
-        inventories
-
-
-{-| Take the first item matching a predicate from a list.
--}
-takeFirst : (a -> Bool) -> List a -> ( Maybe a, List a )
-takeFirst predicate list =
-    takeFirstHelper predicate [] list
-
-
-takeFirstHelper : (a -> Bool) -> List a -> List a -> ( Maybe a, List a )
-takeFirstHelper predicate acc list =
-    case list of
-        [] ->
-            ( Nothing, List.reverse acc )
-
-        x :: xs ->
-            if predicate x then
-                ( Just x, List.reverse acc ++ xs )
-
-            else
-                takeFirstHelper predicate (x :: acc) xs
 
 
 {-| Advance game time. 1 real second = 1 game minute.
