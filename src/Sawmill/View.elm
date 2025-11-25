@@ -76,13 +76,23 @@ viewTree pos =
         []
 
 
-viewSawmill : { position : Vec2, width : Float, height : Float } -> Svg msg
-viewSawmill { position, width, height } =
-    Svg.g []
+viewSawmill : { position : Vec2, width : Float, height : Float, orientation : Float } -> Svg msg
+viewSawmill { position, width, height, orientation } =
+    Svg.g
+        [ SvgA.transform
+            ("translate("
+                ++ String.fromFloat position.x
+                ++ ","
+                ++ String.fromFloat position.y
+                ++ ") rotate("
+                ++ String.fromFloat (orientation * 180 / pi)
+                ++ ")"
+            )
+        ]
         [ -- Main building
           Svg.rect
-            [ SvgA.x (String.fromFloat (position.x - width / 2))
-            , SvgA.y (String.fromFloat (position.y - height / 2))
+            [ SvgA.x (String.fromFloat (-width / 2))
+            , SvgA.y (String.fromFloat (-height / 2))
             , SvgA.width (String.fromFloat width)
             , SvgA.height (String.fromFloat height)
             , SvgA.fill "#8b7355"
@@ -93,8 +103,8 @@ viewSawmill { position, width, height } =
 
         -- Roof indication (darker strip)
         , Svg.rect
-            [ SvgA.x (String.fromFloat (position.x - width / 2))
-            , SvgA.y (String.fromFloat (position.y - height / 2))
+            [ SvgA.x (String.fromFloat (-width / 2))
+            , SvgA.y (String.fromFloat (-height / 2))
             , SvgA.width (String.fromFloat width)
             , SvgA.height "10"
             , SvgA.fill "#6a5a4a"
@@ -107,8 +117,8 @@ viewSawmill { position, width, height } =
                 |> List.map
                     (\i ->
                         Svg.rect
-                            [ SvgA.x (String.fromFloat (position.x + width / 2 + 5))
-                            , SvgA.y (String.fromFloat (position.y - 20 + toFloat i * 8))
+                            [ SvgA.x (String.fromFloat (width / 2 + 5))
+                            , SvgA.y (String.fromFloat (-20 + toFloat i * 8))
                             , SvgA.width "20"
                             , SvgA.height "6"
                             , SvgA.fill "#a08060"
@@ -120,13 +130,23 @@ viewSawmill { position, width, height } =
         ]
 
 
-viewPlatformStructure : { position : Vec2, width : Float, height : Float } -> Svg msg
-viewPlatformStructure { position, width, height } =
-    Svg.g []
+viewPlatformStructure : { position : Vec2, width : Float, height : Float, orientation : Float } -> Svg msg
+viewPlatformStructure { position, width, height, orientation } =
+    Svg.g
+        [ SvgA.transform
+            ("translate("
+                ++ String.fromFloat position.x
+                ++ ","
+                ++ String.fromFloat position.y
+                ++ ") rotate("
+                ++ String.fromFloat (orientation * 180 / pi)
+                ++ ")"
+            )
+        ]
         [ -- Platform surface
           Svg.rect
-            [ SvgA.x (String.fromFloat (position.x - width / 2))
-            , SvgA.y (String.fromFloat (position.y - height / 2))
+            [ SvgA.x (String.fromFloat (-width / 2))
+            , SvgA.y (String.fromFloat (-height / 2))
             , SvgA.width (String.fromFloat width)
             , SvgA.height (String.fromFloat height)
             , SvgA.fill "#888"
@@ -137,8 +157,8 @@ viewPlatformStructure { position, width, height } =
 
         -- Small shelter
         , Svg.rect
-            [ SvgA.x (String.fromFloat (position.x - width / 2 + 5))
-            , SvgA.y (String.fromFloat (position.y - height / 2 + 2))
+            [ SvgA.x (String.fromFloat (-width / 2 + 5))
+            , SvgA.y (String.fromFloat (-height / 2 + 2))
             , SvgA.width "12"
             , SvgA.height "8"
             , SvgA.fill "#666"
@@ -147,18 +167,30 @@ viewPlatformStructure { position, width, height } =
         ]
 
 
-viewRamp : { position : Vec2, width : Float, height : Float } -> Svg msg
-viewRamp { position, width, height } =
-    Svg.rect
-        [ SvgA.x (String.fromFloat (position.x - width / 2))
-        , SvgA.y (String.fromFloat (position.y - height / 2))
-        , SvgA.width (String.fromFloat width)
-        , SvgA.height (String.fromFloat height)
-        , SvgA.fill "#9a8a7a"
-        , SvgA.stroke "#7a6a5a"
-        , SvgA.strokeWidth "1"
+viewRamp : { position : Vec2, width : Float, height : Float, orientation : Float } -> Svg msg
+viewRamp { position, width, height, orientation } =
+    Svg.g
+        [ SvgA.transform
+            ("translate("
+                ++ String.fromFloat position.x
+                ++ ","
+                ++ String.fromFloat position.y
+                ++ ") rotate("
+                ++ String.fromFloat (orientation * 180 / pi)
+                ++ ")"
+            )
         ]
-        []
+        [ Svg.rect
+            [ SvgA.x (String.fromFloat (-width / 2))
+            , SvgA.y (String.fromFloat (-height / 2))
+            , SvgA.width (String.fromFloat width)
+            , SvgA.height (String.fromFloat height)
+            , SvgA.fill "#9a8a7a"
+            , SvgA.stroke "#7a6a5a"
+            , SvgA.strokeWidth "1"
+            ]
+            []
+        ]
 
 
 
