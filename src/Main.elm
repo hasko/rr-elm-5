@@ -10,10 +10,12 @@ import Browser
 import Browser.Events
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (style)
+import Json.Decode as Decode
 import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
 import Sawmill.View as SawmillView
 import Svg exposing (Svg, svg)
 import Svg.Attributes as SvgA
+import Svg.Events as SvgE
 import Time
 import Util.Vec2 as Vec2 exposing (Vec2)
 
@@ -55,6 +57,12 @@ type alias Camera =
     }
 
 
+type alias DragState =
+    { startScreenPos : Vec2 -- Screen position where drag started
+    , startCameraCenter : Vec2 -- Camera center when drag started
+    }
+
+
 type alias Model =
     { mode : GameMode
     , gameTime : GameTime
@@ -64,6 +72,9 @@ type alias Model =
     -- Sawmill puzzle state
     , turnoutState : SwitchState
     , hoveredElement : Maybe ElementId
+
+    -- Panning state
+    , dragState : Maybe DragState
     }
 
 
@@ -78,6 +89,7 @@ init _ =
       , viewportSize = { width = 800, height = 600 }
       , turnoutState = Normal
       , hoveredElement = Nothing
+      , dragState = Nothing
       }
     , Cmd.none
     )
@@ -94,6 +106,9 @@ type Msg
     | ElementHovered ElementId
     | ElementUnhovered
     | ElementClicked ElementId
+    | StartDrag Float Float -- Screen x, y where mousedown occurred
+    | Drag Float Float -- Current screen x, y during drag
+    | EndDrag -- Mouseup or mouseleave
     | NoOp
 
 
@@ -149,6 +164,52 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
+
+        StartDrag screenX screenY ->
+            ( { model
+                | dragState =
+                    Just
+                        { startScreenPos = Vec2.vec2 screenX screenY
+                        , startCameraCenter = model.camera.center
+                        }
+              }
+            , Cmd.none
+            )
+
+        Drag screenX screenY ->
+            case model.dragState of
+                Just drag ->
+                    let
+                        -- Calculate screen delta
+                        deltaScreenX =
+                            screenX - drag.startScreenPos.x
+
+                        deltaScreenY =
+                            screenY - drag.startScreenPos.y
+
+                        -- Convert to world delta (divide by zoom)
+                        deltaWorldX =
+                            deltaScreenX / model.camera.zoom
+
+                        deltaWorldY =
+                            deltaScreenY / model.camera.zoom
+
+                        -- Move camera opposite to drag direction
+                        newCenter =
+                            Vec2.vec2
+                                (drag.startCameraCenter.x - deltaWorldX)
+                                (drag.startCameraCenter.y - deltaWorldY)
+
+                        newCamera =
+                            { center = newCenter, zoom = model.camera.zoom }
+                    in
+                    ( { model | camera = newCamera }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        EndDrag ->
+            ( { model | dragState = Nothing }, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
@@ -359,6 +420,17 @@ viewCanvas model =
         , SvgA.viewBox viewBoxStr
         , style "background" "#3a5a3a" -- Grass green
         , style "flex" "1"
+        , style "cursor"
+            (if model.dragState /= Nothing then
+                "grabbing"
+
+             else
+                "default"
+            )
+        , SvgE.on "mousedown" (decodeMousePosition StartDrag)
+        , SvgE.on "mousemove" (decodeMousePosition Drag)
+        , SvgE.on "mouseup" (Decode.succeed EndDrag)
+        , SvgE.on "mouseleave" (Decode.succeed EndDrag)
         ]
         [ -- Grid for reference
           viewGrid
@@ -370,11 +442,21 @@ viewCanvas model =
             , onElementClick = ElementClicked
             , onElementHover = ElementHovered
             , onElementUnhover = ElementUnhovered
+            , noop = NoOp
             }
 
         -- Tooltip (rendered last so it's on top)
         , tooltipView
         ]
+
+
+{-| Decode mouse position from mouse event.
+-}
+decodeMousePosition : (Float -> Float -> msg) -> Decode.Decoder msg
+decodeMousePosition toMsg =
+    Decode.map2 toMsg
+        (Decode.field "offsetX" Decode.float)
+        (Decode.field "offsetY" Decode.float)
 
 
 {-| Grid for visual reference during development.

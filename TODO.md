@@ -75,8 +75,11 @@
 - [ ] 6.3 Spawn/Despawn
 
 ## Phase 7: Camera & View
-- [ ] 7.1 Camera
-- [ ] 7.2 Main View
+- [x] 7.1 Camera
+  - [x] ViewBox-based camera with center and zoom
+  - [x] Click-and-drag panning
+  - [x] Cursor feedback (default/grabbing)
+- [ ] 7.2 Zoom controls
 
 ## Phase 8: UI Panels
 - [ ] 8.1 Time Controls

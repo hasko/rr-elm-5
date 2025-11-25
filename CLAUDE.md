@@ -35,3 +35,4 @@ The track extends in the **travel direction** (opposite of connector0's orientat
 - `CurvedTrack { radius, sweep }` - 2 connectors, positive sweep = clockwise
 - `Turnout { throughLength, radius, sweep, hand }` - 3 connectors (toe, through, diverge)
 - `TrackEnd` - 1 connector (buffer stops, tunnel portals)
+- Elm packages are documented here: https://package.elm-lang.org

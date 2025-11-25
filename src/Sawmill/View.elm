@@ -3,6 +3,7 @@ module Sawmill.View exposing (view, viewTooltip)
 {-| SVG rendering for the Sawmill puzzle layout.
 -}
 
+import Json.Decode as Decode
 import Sawmill.Layout as Layout
     exposing
         ( Element(..)
@@ -27,6 +28,7 @@ view :
     , onElementClick : ElementId -> msg
     , onElementHover : ElementId -> msg
     , onElementUnhover : msg
+    , noop : msg
     }
     -> Svg msg
 view config =
@@ -245,6 +247,7 @@ viewInteractiveElements :
     , onElementClick : ElementId -> msg
     , onElementHover : ElementId -> msg
     , onElementUnhover : msg
+    , noop : msg
     }
     -> Svg msg
 viewInteractiveElements config =
@@ -260,6 +263,7 @@ viewInteractiveElement :
     , onElementClick : ElementId -> msg
     , onElementHover : ElementId -> msg
     , onElementUnhover : msg
+    , noop : msg
     }
     -> InteractiveElement
     -> Svg msg
@@ -301,6 +305,7 @@ viewInteractiveElement config elem =
                     , SvgE.onClick (config.onElementClick elem.id)
                     , SvgE.onMouseOver (config.onElementHover elem.id)
                     , SvgE.onMouseOut config.onElementUnhover
+                    , SvgE.stopPropagationOn "mousedown" (Decode.succeed ( config.noop, True ))
                     ]
                     []
                ]
