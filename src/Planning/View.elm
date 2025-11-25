@@ -176,6 +176,22 @@ viewScheduledTrainItem onRemove onSelect editingId train =
     let
         isEditing =
             editingId == Just train.id
+
+        locoCount =
+            List.length (List.filter (\item -> item.stockType == Locomotive) train.consist)
+
+        carCount =
+            List.length (List.filter (\item -> item.stockType /= Locomotive) train.consist)
+
+        consistDescription =
+            if locoCount > 0 && carCount > 0 then
+                String.fromInt locoCount ++ " loco + " ++ String.fromInt carCount ++ " cars"
+
+            else if locoCount > 0 then
+                String.fromInt locoCount ++ " loco"
+
+            else
+                String.fromInt carCount ++ " cars"
     in
     div
         [ attribute "data-testid" ("train-row-" ++ String.fromInt train.id)
@@ -207,7 +223,7 @@ viewScheduledTrainItem onRemove onSelect editingId train =
             [ span [ style "font-weight" "bold" ]
                 [ text (formatDepartureTime train.departureTime) ]
             , span [ style "color" "#888", style "margin-left" "8px" ]
-                [ text (String.fromInt (List.length train.consist) ++ " cars") ]
+                [ text consistDescription ]
             ]
         , button
             [ style "background" "#6a2a2a"
