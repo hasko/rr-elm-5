@@ -12,8 +12,10 @@ import Html exposing (Html, div, text)
 import Html.Attributes exposing (style)
 import Json.Decode as Decode
 import Planning.Helpers exposing (returnStockToInventory, takeStockFromInventory)
-import Planning.Types as Planning exposing (SpawnPointId(..), StockItem, StockType(..))
+import Planning.Types as Planning exposing (PanelMode(..), SpawnPointId(..), StockItem, StockType(..))
+import Programmer.Types as Programmer
 import Planning.View as PlanningView
+import Programmer.View as ProgrammerView
 import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
 import Sawmill.View as SawmillView
 import Svg exposing (Svg, svg)
@@ -132,6 +134,15 @@ type Msg
     | ScheduleTrain
     | RemoveScheduledTrain Int
     | SelectScheduledTrain Int -- Load train into editor
+      -- Programmer panel messages
+    | OpenProgrammer Int
+    | CloseProgrammer
+    | AddOrder Programmer.Order
+    | RemoveOrder Int
+    | MoveOrderUp Int
+    | MoveOrderDown Int
+    | SelectProgramOrder Int
+    | SaveProgram
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -360,6 +371,30 @@ update msg model =
 
         SelectScheduledTrain trainId ->
             ( updateSelectScheduledTrain trainId model, Cmd.none )
+
+        OpenProgrammer trainId ->
+            ( updateOpenProgrammer trainId model, Cmd.none )
+
+        CloseProgrammer ->
+            ( updateCloseProgrammer model, Cmd.none )
+
+        AddOrder order ->
+            ( updateAddOrder order model, Cmd.none )
+
+        RemoveOrder index ->
+            ( updateRemoveOrder index model, Cmd.none )
+
+        MoveOrderUp index ->
+            ( updateMoveOrderUp index model, Cmd.none )
+
+        MoveOrderDown index ->
+            ( updateMoveOrderDown index model, Cmd.none )
+
+        SelectProgramOrder index ->
+            ( updateSelectProgramOrder index model, Cmd.none )
+
+        SaveProgram ->
+            ( updateSaveProgram model, Cmd.none )
 
 
 
@@ -592,32 +627,27 @@ updateScheduleTrain model =
     else
         case planning.editingTrainId of
             Just trainId ->
-                -- Update existing train
+                -- Update existing train - recreate it with new data
                 let
-                    newTrains =
-                        planning.scheduledTrains
-                            |> List.map
-                                (\t ->
-                                    if t.id == trainId then
-                                        { t
-                                            | departureTime =
-                                                { day = planning.timePickerDay
-                                                , hour = planning.timePickerHour
-                                                , minute = planning.timePickerMinute
-                                                }
-                                            , consist = consist
-                                        }
-
-                                    else
-                                        t
-                                )
+                    updatedTrain =
+                        { id = trainId
+                        , spawnPoint = planning.selectedSpawnPoint
+                        , departureTime =
+                            { day = planning.timePickerDay
+                            , hour = planning.timePickerHour
+                            , minute = planning.timePickerMinute
+                            }
+                        , consist = consist
+                        , program = planning.editingTrainProgram
+                        }
                 in
                 { model
                     | planningState =
                         { planning
-                            | scheduledTrains = newTrains
+                            | scheduledTrains = planning.scheduledTrains ++ [ updatedTrain ]
                             , consistBuilder = Planning.emptyConsistBuilder
                             , editingTrainId = Nothing
+                            , editingTrainProgram = Programmer.emptyProgram
                         }
                 }
 
@@ -633,6 +663,7 @@ updateScheduleTrain model =
                             , minute = planning.timePickerMinute
                             }
                         , consist = consist
+                        , program = Programmer.emptyProgram
                         }
                 in
                 { model
@@ -694,6 +725,7 @@ updateSelectScheduledTrain trainId model =
                         , timePickerHour = train.departureTime.hour
                         , timePickerMinute = train.departureTime.minute
                         , editingTrainId = Just trainId
+                        , editingTrainProgram = train.program
                     }
             }
 
@@ -733,6 +765,222 @@ updateRemoveScheduledTrain trainId model =
             }
 
 
+
+-- PROGRAMMER HELPERS
+
+
+{-| Open the programmer for a train.
+-}
+updateOpenProgrammer : Int -> Model -> Model
+updateOpenProgrammer trainId model =
+    let
+        planning =
+            model.planningState
+    in
+    -- Only open programmer if we're editing this train
+    case planning.editingTrainId of
+        Just editId ->
+            if editId == trainId then
+                { model
+                    | planningState =
+                        { planning
+                            | panelMode = ProgrammerView trainId
+                            , programmerState =
+                                Just (Programmer.initProgrammerState trainId planning.editingTrainProgram)
+                        }
+                }
+
+            else
+                model
+
+        Nothing ->
+            model
+
+
+{-| Close the programmer without saving.
+-}
+updateCloseProgrammer : Model -> Model
+updateCloseProgrammer model =
+    let
+        planning =
+            model.planningState
+    in
+    { model
+        | planningState =
+            { planning
+                | panelMode = PlanningView
+                , programmerState = Nothing
+            }
+    }
+
+
+{-| Save the program and close the programmer.
+    This also saves the entire train back to scheduledTrains.
+-}
+updateSaveProgram : Model -> Model
+updateSaveProgram model =
+    let
+        planning =
+            model.planningState
+    in
+    case ( planning.programmerState, planning.editingTrainId ) of
+        ( Just progState, Just trainId ) ->
+            let
+                -- Reconstruct the train with current editing data and new program
+                savedTrain =
+                    { id = trainId
+                    , spawnPoint = planning.selectedSpawnPoint
+                    , departureTime =
+                        { day = planning.timePickerDay
+                        , hour = planning.timePickerHour
+                        , minute = planning.timePickerMinute
+                        }
+                    , consist = planning.consistBuilder.items
+                    , program = progState.program
+                    }
+            in
+            { model
+                | planningState =
+                    { planning
+                        | scheduledTrains = planning.scheduledTrains ++ [ savedTrain ]
+                        , consistBuilder = Planning.emptyConsistBuilder
+                        , editingTrainId = Nothing
+                        , editingTrainProgram = Programmer.emptyProgram
+                        , panelMode = PlanningView
+                        , programmerState = Nothing
+                    }
+            }
+
+        _ ->
+            model
+
+
+{-| Add an order to the program.
+-}
+updateAddOrder : Programmer.Order -> Model -> Model
+updateAddOrder order model =
+    updateProgrammerState model
+        (\progState ->
+            { progState | program = progState.program ++ [ order ] }
+        )
+
+
+{-| Remove an order from the program.
+-}
+updateRemoveOrder : Int -> Model -> Model
+updateRemoveOrder index model =
+    updateProgrammerState model
+        (\progState ->
+            { progState
+                | program = removeAt index progState.program
+                , selectedOrderIndex = Nothing
+            }
+        )
+
+
+{-| Move an order up in the program.
+-}
+updateMoveOrderUp : Int -> Model -> Model
+updateMoveOrderUp index model =
+    if index > 0 then
+        updateProgrammerState model
+            (\progState ->
+                { progState
+                    | program = swapAt (index - 1) index progState.program
+                    , selectedOrderIndex = Just (index - 1)
+                }
+            )
+
+    else
+        model
+
+
+{-| Move an order down in the program.
+-}
+updateMoveOrderDown : Int -> Model -> Model
+updateMoveOrderDown index model =
+    updateProgrammerState model
+        (\progState ->
+            if index < List.length progState.program - 1 then
+                { progState
+                    | program = swapAt index (index + 1) progState.program
+                    , selectedOrderIndex = Just (index + 1)
+                }
+
+            else
+                progState
+        )
+
+
+{-| Select an order in the program.
+-}
+updateSelectProgramOrder : Int -> Model -> Model
+updateSelectProgramOrder index model =
+    updateProgrammerState model
+        (\progState ->
+            { progState | selectedOrderIndex = Just index }
+        )
+
+
+{-| Helper to update programmer state.
+-}
+updateProgrammerState : Model -> (Programmer.ProgrammerState -> Programmer.ProgrammerState) -> Model
+updateProgrammerState model updater =
+    let
+        planning =
+            model.planningState
+    in
+    case planning.programmerState of
+        Nothing ->
+            model
+
+        Just progState ->
+            { model
+                | planningState =
+                    { planning
+                        | programmerState = Just (updater progState)
+                    }
+            }
+
+
+{-| Remove element at index from list.
+-}
+removeAt : Int -> List a -> List a
+removeAt index list =
+    List.take index list ++ List.drop (index + 1) list
+
+
+{-| Swap elements at two indices.
+-}
+swapAt : Int -> Int -> List a -> List a
+swapAt i j list =
+    let
+        arr =
+            List.indexedMap Tuple.pair list
+
+        getAt idx =
+            arr
+                |> List.filter (\( k, _ ) -> k == idx)
+                |> List.head
+                |> Maybe.map Tuple.second
+    in
+    case ( getAt i, getAt j ) of
+        ( Just vi, Just vj ) ->
+            arr
+                |> List.map
+                    (\( k, v ) ->
+                        if k == i then
+                            vj
+
+                        else if k == j then
+                            vi
+
+                        else
+                            v
+                    )
+
+        _ ->
+            list
 
 
 {-| Advance game time. 1 real second = 1 game minute.
@@ -813,27 +1061,54 @@ viewMainContent model =
                 , style "overflow" "hidden"
                 ]
                 [ div [ style "flex" "1" ] [ viewCanvas model ]
-                , PlanningView.viewPlanningPanel
-                    { state = model.planningState
-                    , onClose = ClosePlanningPanel
-                    , onSelectSpawnPoint = SelectSpawnPoint
-                    , onSelectStock = SelectStockItem
-                    , onAddToFront = AddToConsistFront
-                    , onAddToBack = AddToConsistBack
-                    , onInsertInConsist = InsertInConsist
-                    , onRemoveFromConsist = RemoveFromConsist
-                    , onClearConsist = ClearConsistBuilder
-                    , onSetHour = SetTimePickerHour
-                    , onSetMinute = SetTimePickerMinute
-                    , onSetDay = SetTimePickerDay
-                    , onSchedule = ScheduleTrain
-                    , onRemoveTrain = RemoveScheduledTrain
-                    , onSelectTrain = SelectScheduledTrain
-                    }
+                , viewRightPanel model
                 ]
 
         _ ->
             viewCanvas model
+
+
+viewRightPanel : Model -> Html Msg
+viewRightPanel model =
+    case model.planningState.panelMode of
+        PlanningView ->
+            PlanningView.viewPlanningPanel
+                { state = model.planningState
+                , onClose = ClosePlanningPanel
+                , onSelectSpawnPoint = SelectSpawnPoint
+                , onSelectStock = SelectStockItem
+                , onAddToFront = AddToConsistFront
+                , onAddToBack = AddToConsistBack
+                , onInsertInConsist = InsertInConsist
+                , onRemoveFromConsist = RemoveFromConsist
+                , onClearConsist = ClearConsistBuilder
+                , onSetHour = SetTimePickerHour
+                , onSetMinute = SetTimePickerMinute
+                , onSetDay = SetTimePickerDay
+                , onSchedule = ScheduleTrain
+                , onRemoveTrain = RemoveScheduledTrain
+                , onSelectTrain = SelectScheduledTrain
+                , onOpenProgrammer = OpenProgrammer
+                }
+
+        ProgrammerView trainId ->
+            case model.planningState.programmerState of
+                Just progState ->
+                    ProgrammerView.viewProgrammerPanel
+                        { state = progState
+                        , trainId = trainId
+                        , onBack = CloseProgrammer
+                        , onSave = SaveProgram
+                        , onAddOrder = AddOrder
+                        , onRemoveOrder = RemoveOrder
+                        , onMoveOrderUp = MoveOrderUp
+                        , onMoveOrderDown = MoveOrderDown
+                        , onSelectOrder = SelectProgramOrder
+                        }
+
+                Nothing ->
+                    -- Should not happen, but fallback to planning view
+                    text "Error: No programmer state"
 
 
 viewHeader : Model -> Html Msg

@@ -10,6 +10,7 @@ import Json.Decode as Decode
 import Planning.Types as Planning
     exposing
         ( ConsistBuilder
+        , PanelMode(..)
         , PlanningState
         , ScheduledTrain
         , SpawnPointId(..)
@@ -39,6 +40,7 @@ viewPlanningPanel :
     , onSchedule : msg
     , onRemoveTrain : Int -> msg
     , onSelectTrain : Int -> msg
+    , onOpenProgrammer : Int -> msg
     }
     -> Html msg
 viewPlanningPanel config =
@@ -54,10 +56,10 @@ viewPlanningPanel config =
         ]
         [ viewPanelHeader config.onClose
         , viewSpawnPointSelector config.state.selectedSpawnPoint config.onSelectSpawnPoint
-        , viewScheduledTrains config.state config.onRemoveTrain config.onSelectTrain
+        , viewScheduledTrains config.state config.onRemoveTrain config.onSelectTrain config.onOpenProgrammer
         , viewAvailableStock config.state config.onSelectStock
         , viewConsistBuilder config.state.consistBuilder config.onAddToFront config.onAddToBack config.onInsertInConsist config.onRemoveFromConsist config.onClearConsist
-        , viewScheduleControls config.state config.onSetDay config.onSetHour config.onSetMinute config.onSchedule
+        , viewScheduleControls config.state config.onSetDay config.onSetHour config.onSetMinute config.onSchedule config.onOpenProgrammer
         ]
 
 
@@ -141,8 +143,8 @@ viewSpawnPointButton spawnId labelText selected onSelect =
         [ text labelText ]
 
 
-viewScheduledTrains : PlanningState -> (Int -> msg) -> (Int -> msg) -> Html msg
-viewScheduledTrains state onRemove onSelect =
+viewScheduledTrains : PlanningState -> (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> Html msg
+viewScheduledTrains state onRemove onSelect onOpenProgrammer =
     let
         trainsForSpawnPoint =
             state.scheduledTrains
@@ -167,12 +169,12 @@ viewScheduledTrains state onRemove onSelect =
                 [ text "No trains scheduled" ]
 
           else
-            div [] (List.map (viewScheduledTrainItem onRemove onSelect state.editingTrainId) trainsForSpawnPoint)
+            div [] (List.map (viewScheduledTrainItem onRemove onSelect onOpenProgrammer state.editingTrainId) trainsForSpawnPoint)
         ]
 
 
-viewScheduledTrainItem : (Int -> msg) -> (Int -> msg) -> Maybe Int -> ScheduledTrain -> Html msg
-viewScheduledTrainItem onRemove onSelect editingId train =
+viewScheduledTrainItem : (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> Maybe Int -> ScheduledTrain -> Html msg
+viewScheduledTrainItem onRemove onSelect onOpenProgrammer editingId train =
     let
         isEditing =
             editingId == Just train.id
@@ -192,6 +194,24 @@ viewScheduledTrainItem onRemove onSelect editingId train =
 
             else
                 String.fromInt carCount ++ " cars"
+
+        programButton =
+            if isEditing then
+                button
+                    [ attribute "data-testid" ("program-btn-" ++ String.fromInt train.id)
+                    , style "background" "#4a6a8a"
+                    , style "border" "none"
+                    , style "color" "#e0e0e0"
+                    , style "padding" "4px 8px"
+                    , style "border-radius" "2px"
+                    , style "cursor" "pointer"
+                    , style "margin-right" "8px"
+                    , Html.Events.stopPropagationOn "click" (Decode.succeed ( onOpenProgrammer train.id, True ))
+                    ]
+                    [ text "Program" ]
+
+            else
+                text ""
     in
     div
         [ attribute "data-testid" ("train-row-" ++ String.fromInt train.id)
@@ -225,16 +245,19 @@ viewScheduledTrainItem onRemove onSelect editingId train =
             , span [ style "color" "#888", style "margin-left" "8px" ]
                 [ text consistDescription ]
             ]
-        , button
-            [ style "background" "#6a2a2a"
-            , style "border" "none"
-            , style "color" "#e0e0e0"
-            , style "padding" "4px 8px"
-            , style "border-radius" "2px"
-            , style "cursor" "pointer"
-            , Html.Events.stopPropagationOn "click" (Decode.succeed ( onRemove train.id, True ))
+        , div [ style "display" "flex", style "align-items" "center" ]
+            [ programButton
+            , button
+                [ style "background" "#6a2a2a"
+                , style "border" "none"
+                , style "color" "#e0e0e0"
+                , style "padding" "4px 8px"
+                , style "border-radius" "2px"
+                , style "cursor" "pointer"
+                , Html.Events.stopPropagationOn "click" (Decode.succeed ( onRemove train.id, True ))
+                ]
+                [ text "X" ]
             ]
-            [ text "X" ]
         ]
 
 
@@ -595,8 +618,8 @@ viewConsistItem onRemove index item =
         ]
 
 
-viewScheduleControls : PlanningState -> (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> msg -> Html msg
-viewScheduleControls state onSetDay onSetHour onSetMinute onSchedule =
+viewScheduleControls : PlanningState -> (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> msg -> (Int -> msg) -> Html msg
+viewScheduleControls state onSetDay onSetHour onSetMinute onSchedule onOpenProgrammer =
     let
         items =
             state.consistBuilder.items
@@ -607,8 +630,11 @@ viewScheduleControls state onSetDay onSetHour onSetMinute onSchedule =
         isValid =
             not (List.isEmpty items) && hasLoco
 
+        editingTrainId =
+            state.editingTrainId
+
         isEditing =
-            state.editingTrainId /= Nothing
+            editingTrainId /= Nothing
 
         buttonText =
             if isEditing then
@@ -626,6 +652,28 @@ viewScheduleControls state onSetDay onSetHour onSetMinute onSchedule =
 
             else
                 Nothing
+
+        programButton =
+            case editingTrainId of
+                Just trainId ->
+                    button
+                        [ attribute "data-testid" ("program-btn-" ++ String.fromInt trainId)
+                        , style "width" "100%"
+                        , style "padding" "12px"
+                        , style "background" "#4a6a8a"
+                        , style "border" "none"
+                        , style "color" "#fff"
+                        , style "border-radius" "4px"
+                        , style "cursor" "pointer"
+                        , style "font-weight" "bold"
+                        , style "font-size" "14px"
+                        , style "margin-bottom" "8px"
+                        , onClick (onOpenProgrammer trainId)
+                        ]
+                        [ text "Program" ]
+
+                Nothing ->
+                    text ""
     in
     div
         [ style "padding" "12px 16px"
@@ -646,6 +694,7 @@ viewScheduleControls state onSetDay onSetHour onSetMinute onSchedule =
             [ viewDayPicker state.timePickerDay onSetDay
             , viewTimePicker state.timePickerHour state.timePickerMinute onSetHour onSetMinute
             ]
+        , programButton
         , button
             [ id "schedule-button"
             , attribute "data-testid" "schedule-button"

@@ -8,13 +8,20 @@ module Planning.Types exposing
     , SpawnPointInventory
     , ConsistBuilder
     , PlanningState
+    , PanelMode(..)
     , initPlanningState
     , emptyConsistBuilder
     , stockTypeName
     )
 
-{-| Types for the train planning system.
+import Programmer.Types exposing (Program, ProgrammerState, emptyProgram)
+
+
+{-| What the right panel is showing.
 -}
+type PanelMode
+    = PlanningView
+    | ProgrammerView Int -- trainId being programmed
 
 
 {-| Spawn point identifier for where trains enter the puzzle.
@@ -63,6 +70,7 @@ type alias ScheduledTrain =
     , spawnPoint : SpawnPointId
     , departureTime : DepartureTime
     , consist : Consist
+    , program : Program
     }
 
 
@@ -94,6 +102,9 @@ type alias PlanningState =
     , timePickerDay : Int
     , nextTrainId : Int
     , editingTrainId : Maybe Int -- When editing existing train
+    , editingTrainProgram : Program -- Program of train being edited
+    , panelMode : PanelMode
+    , programmerState : Maybe ProgrammerState
     }
 
 
@@ -134,6 +145,9 @@ initPlanningState =
     , timePickerDay = 0
     , nextTrainId = 1
     , editingTrainId = Nothing
+    , editingTrainProgram = emptyProgram
+    , panelMode = PlanningView
+    , programmerState = Nothing
     }
 
 

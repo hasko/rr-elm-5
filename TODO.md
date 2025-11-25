@@ -98,9 +98,23 @@
   - [x] Per-spawn-point inventory
   - [x] Stock types: Locomotive, PassengerCar, Flatbed, Boxcar
 
-## Phase 10: Schedule Editor UI
-- [ ] 10.1 Order Blocks
-- [ ] 10.2 Schedule Editor (click-based)
+## Phase 10: Train Programmer UI
+- [x] 10.1 Programmer Types (`src/Programmer/Types.elm`)
+  - [x] Order types: MoveTo, SetReverser, SetSwitch, WaitSeconds
+  - [x] SpotId: Platform, TeamTrack, EastTunnel, WestTunnel
+  - [x] Program (list of orders)
+  - [x] ProgrammerState
+- [x] 10.2 Programmer View (`src/Programmer/View.elm`)
+  - [x] Order list with move up/down and remove
+  - [x] Order palette with add buttons
+  - [x] Back and Save buttons
+- [x] 10.3 Integration
+  - [x] Program button appears when editing a train
+  - [x] Panel mode switching (PlanningView/ProgrammerView)
+  - [x] Program stored with scheduled train
+- [x] 10.4 Tests
+  - [x] Elm unit tests for programmer types (tests/ProgrammerTypesTest.elm)
+  - [x] Playwright e2e tests (tests/programmer.spec.js)
 
 ## Phase 11: Puzzle System
 - [ ] 11.1 Puzzle Definition
