@@ -79,7 +79,12 @@
   - [x] ViewBox-based camera with center and zoom
   - [x] Click-and-drag panning
   - [x] Cursor feedback (default/grabbing)
-- [ ] 7.2 Zoom controls
+- [x] 7.2 Zoom controls
+  - [x] Scroll wheel zoom
+  - [x] Zoom-to-cursor (keeps world point under mouse fixed)
+  - [x] Camera module (`src/Camera.elm`) for testable zoom logic
+  - [x] Elm unit tests (`tests/CameraTest.elm`)
+  - [x] Playwright e2e tests (`tests/zoom.spec.js`)
 
 ## Phase 8: UI Panels
 - [ ] 8.1 Time Controls
