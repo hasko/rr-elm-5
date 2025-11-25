@@ -376,17 +376,17 @@ renderArcRails arc =
 
         -- Inner rail points (closer to center)
         innerStart =
-            Vec2.subtract arc.start (Vec2.scale 2 radialDirStart)
+            Vec2.subtract arc.start (Vec2.scale halfGauge radialDirStart)
 
         innerEnd =
-            Vec2.subtract arc.end (Vec2.scale 2 radialDirEnd)
+            Vec2.subtract arc.end (Vec2.scale halfGauge radialDirEnd)
 
         -- Outer rail points (farther from center)
         outerStart =
-            Vec2.add arc.start (Vec2.scale 2 radialDirStart)
+            Vec2.add arc.start (Vec2.scale halfGauge radialDirStart)
 
         outerEnd =
-            Vec2.add arc.end (Vec2.scale 2 radialDirEnd)
+            Vec2.add arc.end (Vec2.scale halfGauge radialDirEnd)
 
         innerPath =
             "M "
