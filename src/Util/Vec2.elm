@@ -24,9 +24,10 @@ module Util.Vec2 exposing
 
 All angles are in radians. The coordinate system uses:
 
-  - X axis: West (-) to East (+)
-  - Y axis: North (-) to South (+) (screen coordinates)
-  - Angle 0 = East, counter-clockwise positive
+  - X axis: East (-) to West (+) (screen: left to right)
+  - Y axis: North (-) to South (+) (screen: up to down)
+  - Angle 0 = North, angles increase clockwise
+  - 90° = West (right on screen)
 
 -}
 
@@ -140,12 +141,12 @@ rotate angleRad v =
     }
 
 
-{-| Get the angle of a vector from the positive X axis (radians).
+{-| Get the angle of a vector (radians, 0 = North, clockwise positive).
 Returns 0 for zero vector.
 -}
 angle : Vec2 -> Float
 angle v =
-    atan2 v.y v.x
+    atan2 v.x -v.y
 
 
 {-| Get the angle between two vectors (radians, 0 to pi).
@@ -196,16 +197,17 @@ distanceSquared a b =
     lengthSquared (subtract b a)
 
 
-{-| Create a unit vector from an angle (radians from positive X axis).
+{-| Create a unit vector from an angle (radians, 0 = North, clockwise positive).
 -}
 fromAngle : Float -> Vec2
 fromAngle angleRad =
-    { x = cos angleRad
-    , y = sin angleRad
+    { x = sin angleRad
+    , y = -(cos angleRad)
     }
 
 
-{-| Get a perpendicular vector (rotated 90 degrees counter-clockwise).
+{-| Get a perpendicular vector (rotated 90 degrees clockwise).
+In our coordinate system, this is the "right-hand" perpendicular.
 -}
 perpendicular : Vec2 -> Vec2
 perpendicular v =

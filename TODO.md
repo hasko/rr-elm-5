@@ -12,12 +12,47 @@
 - [x] 1.3 Application Shell
   - [x] `src/Main.elm` - Browser.element with placeholder SVG
 
+## Phase 1.5: Sawmill Visual Layout (Simplified)
+- [x] 1.5.1 Track Rendering
+  - [x] `src/Sawmill/Layout.elm` - Layout definition using composable track system
+  - [x] Mainline, turnout, siding, buffer stop, tunnel portal
+- [x] 1.5.2 Interactive Elements
+  - [x] Tunnel portal (spawn point)
+  - [x] Turnout (clickable, shows state)
+  - [x] Platform spot
+  - [x] Team track spot
+- [x] 1.5.3 Map Furniture
+  - [x] Sawmill building
+  - [x] Team track ramp
+  - [x] Passenger platform
+- [x] 1.5.4 Mouse Interaction
+  - [x] SVG-native hover detection (mouseenter/mouseleave on hit areas)
+  - [x] Dashed outline on hover
+  - [x] Tooltip near element
+  - [x] Click turnout to toggle
+
 ## Phase 2: Track System
-- [ ] 2.1 Track Geometry
-- [ ] 2.2 Track Segments
-- [ ] 2.3 Switches/Turnouts
-- [ ] 2.4 Track Layout
-- [ ] 2.5 Track Ends
+- [x] 2.1 Track Geometry (`src/Track/Element.elm`)
+  - [x] Connector type (position + orientation)
+  - [x] TrackElementType (Straight, Curved, Turnout, TrackEnd)
+  - [x] Geometry computation for all element types
+- [x] 2.2 Track Segments
+  - [x] StraightTrack with length
+  - [x] CurvedTrack with radius and sweep
+- [x] 2.3 Switches/Turnouts
+  - [x] Turnout with through/diverging routes
+  - [x] Left/Right hand support
+- [x] 2.4 Track Layout (`src/Track/Layout.elm`)
+  - [x] Layout builder with placeElement/placeElementAt
+  - [x] Connection tracking
+  - [x] Connector lookup
+- [x] 2.5 Track Ends
+  - [x] TrackEnd element type (buffer stops, tunnel portals)
+- [x] 2.6 Track Rendering (`src/Track/Render.elm`)
+  - [x] RenderSegment types (straight, arc)
+  - [x] Ballast and rail rendering
+- [x] 2.7 Track Validation (`src/Track/Validation.elm`)
+  - [x] Connection continuity validation (position and orientation)
 
 ## Phase 3: Rolling Stock
 - [ ] 3.1 Stock Types

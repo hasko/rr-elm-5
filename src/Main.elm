@@ -10,6 +10,8 @@ import Browser
 import Browser.Events
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (style)
+import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
+import Sawmill.View as SawmillView
 import Svg exposing (Svg, svg)
 import Svg.Attributes as SvgA
 import Time
@@ -58,6 +60,10 @@ type alias Model =
     , gameTime : GameTime
     , camera : Camera
     , viewportSize : { width : Float, height : Float }
+
+    -- Sawmill puzzle state
+    , turnoutState : SwitchState
+    , hoveredElement : Maybe ElementId
     }
 
 
@@ -66,10 +72,12 @@ init _ =
     ( { mode = Planning
       , gameTime = { day = 0, hour = 6, minute = 0 }
       , camera =
-            { center = Vec2.vec2 0 0
+            { center = Vec2.vec2 -50 60
             , zoom = 2.0 -- 2 pixels per meter
             }
       , viewportSize = { width = 800, height = 600 }
+      , turnoutState = Normal
+      , hoveredElement = Nothing
       }
     , Cmd.none
     )
@@ -83,6 +91,9 @@ type Msg
     = Tick Float -- Delta time in milliseconds
     | TogglePlayPause
     | SetMode GameMode
+    | ElementHovered ElementId
+    | ElementUnhovered
+    | ElementClicked ElementId
     | NoOp
 
 
@@ -115,6 +126,29 @@ update msg model =
 
         SetMode newMode ->
             ( { model | mode = newMode }, Cmd.none )
+
+        ElementHovered elementId ->
+            ( { model | hoveredElement = Just elementId }, Cmd.none )
+
+        ElementUnhovered ->
+            ( { model | hoveredElement = Nothing }, Cmd.none )
+
+        ElementClicked elementId ->
+            case elementId of
+                TurnoutId ->
+                    let
+                        newState =
+                            case model.turnoutState of
+                                Normal ->
+                                    Reverse
+
+                                Reverse ->
+                                    Normal
+                    in
+                    ( { model | turnoutState = newState }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
@@ -200,7 +234,7 @@ viewHeader model =
         , style "font-family" "monospace"
         ]
         [ div []
-            [ text "Railroad Switching Puzzle" ]
+            [ text "Railroad Switching Puzzle - Sawmill" ]
         , div [ style "display" "flex", style "gap" "20px", style "align-items" "center" ]
             [ viewGameTime model.gameTime
             , viewModeIndicator model.mode
@@ -291,6 +325,33 @@ viewCanvas model =
                 , String.fromFloat viewBoxWidth
                 , String.fromFloat viewBoxHeight
                 ]
+
+        -- Get tooltip for hovered element
+        tooltipView =
+            case model.hoveredElement of
+                Just elemId ->
+                    let
+                        maybeElem =
+                            Layout.interactiveElements model.turnoutState
+                                |> List.filter (\e -> e.id == elemId)
+                                |> List.head
+                    in
+                    case maybeElem of
+                        Just elem ->
+                            let
+                                -- Position tooltip at center-right of element bounds
+                                tooltipPos =
+                                    Vec2.vec2
+                                        (elem.bounds.x + elem.bounds.width)
+                                        (elem.bounds.y + elem.bounds.height / 2)
+                            in
+                            SawmillView.viewTooltip tooltipPos elem.tooltip
+
+                        Nothing ->
+                            Svg.g [] []
+
+                Nothing ->
+                    Svg.g [] []
     in
     svg
         [ SvgA.width "100%"
@@ -299,15 +360,24 @@ viewCanvas model =
         , style "background" "#3a5a3a" -- Grass green
         , style "flex" "1"
         ]
-        [ -- Grid for reference (temporary)
+        [ -- Grid for reference
           viewGrid
 
-        -- Placeholder: will be replaced with actual track rendering
-        , viewPlaceholderTrack
+        -- Sawmill layout
+        , SawmillView.view
+            { turnoutState = model.turnoutState
+            , hoveredElement = model.hoveredElement
+            , onElementClick = ElementClicked
+            , onElementHover = ElementHovered
+            , onElementUnhover = ElementUnhovered
+            }
+
+        -- Tooltip (rendered last so it's on top)
+        , tooltipView
         ]
 
 
-{-| Temporary grid for visual reference during development.
+{-| Grid for visual reference during development.
 -}
 viewGrid : Svg Msg
 viewGrid =
@@ -326,7 +396,7 @@ viewGrid =
                             , SvgA.x2 (String.fromFloat pos)
                             , SvgA.y2 "500"
                             , SvgA.stroke "#2a4a2a"
-                            , SvgA.strokeWidth "1"
+                            , SvgA.strokeWidth "0.5"
                             ]
                             []
                         , Svg.line
@@ -335,60 +405,10 @@ viewGrid =
                             , SvgA.x2 "500"
                             , SvgA.y2 (String.fromFloat pos)
                             , SvgA.stroke "#2a4a2a"
-                            , SvgA.strokeWidth "1"
+                            , SvgA.strokeWidth "0.5"
                             ]
                             []
                         ]
                     )
     in
     Svg.g [] gridLines
-
-
-{-| Placeholder track to verify rendering works.
-Will be replaced with actual track system.
--}
-viewPlaceholderTrack : Svg Msg
-viewPlaceholderTrack =
-    Svg.g []
-        [ -- A simple straight track segment
-          Svg.line
-            [ SvgA.x1 "-200"
-            , SvgA.y1 "0"
-            , SvgA.x2 "200"
-            , SvgA.y2 "0"
-            , SvgA.stroke "#8b7355"
-            , SvgA.strokeWidth "4"
-            , SvgA.strokeLinecap "round"
-            ]
-            []
-
-        -- Rails
-        , Svg.line
-            [ SvgA.x1 "-200"
-            , SvgA.y1 "-2"
-            , SvgA.x2 "200"
-            , SvgA.y2 "-2"
-            , SvgA.stroke "#555"
-            , SvgA.strokeWidth "0.8"
-            ]
-            []
-        , Svg.line
-            [ SvgA.x1 "-200"
-            , SvgA.y1 "2"
-            , SvgA.x2 "200"
-            , SvgA.y2 "2"
-            , SvgA.stroke "#555"
-            , SvgA.strokeWidth "0.8"
-            ]
-            []
-
-        -- Origin marker
-        , Svg.circle
-            [ SvgA.cx "0"
-            , SvgA.cy "0"
-            , SvgA.r "5"
-            , SvgA.fill "#ff6666"
-            , SvgA.opacity "0.5"
-            ]
-            []
-        ]

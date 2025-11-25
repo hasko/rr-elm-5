@@ -10,6 +10,8 @@
   },
   "devDependencies": {
     "elm": "^0.19.1-6",
+    "elm-format": "^0.8.8",
+    "elm-review": "^2.13.4",
     "vite": "^5.4.0",
     "vite-plugin-elm": "^3.0.1"
   }
