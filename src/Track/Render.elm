@@ -25,7 +25,15 @@ import Track.Element as Element
         , TrackElementType(..)
         )
 import Track.Layout exposing (Layout)
-import Util.Vec2 exposing (Vec2)
+import Util.Vec2 as Vec2 exposing (Vec2)
+
+
+{-| Half of standard rail gauge (1.435m / 2).
+Used for offsetting rails from track centerline.
+-}
+halfGauge : Float
+halfGauge =
+    1.435 / 2
 
 
 {-| A renderable track segment.
@@ -226,34 +234,67 @@ renderRails segment =
 renderStraightRails : Vec2 -> Vec2 -> Svg msg
 renderStraightRails start end =
     let
-        pathStr =
+        -- Calculate direction vector and perpendicular offset
+        direction =
+            Vec2.subtract end start
+
+        perp =
+            Vec2.normalize (Vec2.perpendicular direction)
+
+        -- Offset perpendicular to track direction (standard gauge = 1.435m)
+        offset =
+            Vec2.scale halfGauge perp
+
+        -- Left rail points (offset in one direction)
+        leftStart =
+            Vec2.subtract start offset
+
+        leftEnd =
+            Vec2.subtract end offset
+
+        leftPathStr =
             "M "
-                ++ String.fromFloat start.x
+                ++ String.fromFloat leftStart.x
                 ++ " "
-                ++ String.fromFloat start.y
+                ++ String.fromFloat leftStart.y
                 ++ " L "
-                ++ String.fromFloat end.x
+                ++ String.fromFloat leftEnd.x
                 ++ " "
-                ++ String.fromFloat end.y
+                ++ String.fromFloat leftEnd.y
+
+        -- Right rail points (offset in opposite direction)
+        rightStart =
+            Vec2.add start offset
+
+        rightEnd =
+            Vec2.add end offset
+
+        rightPathStr =
+            "M "
+                ++ String.fromFloat rightStart.x
+                ++ " "
+                ++ String.fromFloat rightStart.y
+                ++ " L "
+                ++ String.fromFloat rightEnd.x
+                ++ " "
+                ++ String.fromFloat rightEnd.y
     in
     Svg.g []
         [ -- Left rail
           Svg.path
-            [ SvgA.d pathStr
+            [ SvgA.d leftPathStr
             , SvgA.stroke "#555"
             , SvgA.strokeWidth "1.5"
             , SvgA.fill "none"
-            , SvgA.transform "translate(0, -2)"
             ]
             []
 
         -- Right rail
         , Svg.path
-            [ SvgA.d pathStr
+            [ SvgA.d rightPathStr
             , SvgA.stroke "#555"
             , SvgA.strokeWidth "1.5"
             , SvgA.fill "none"
-            , SvgA.transform "translate(0, 2)"
             ]
             []
         ]
@@ -264,19 +305,94 @@ renderStraightRails start end =
 renderArcRails : { start : Vec2, end : Vec2, radius : Float, sweepFlag : Int } -> Svg msg
 renderArcRails arc =
     let
-        -- Inner and outer rail radii
+        -- Inner and outer rail radii (standard gauge = 1.435m)
         innerRadius =
-            arc.radius - 2
+            arc.radius - halfGauge
 
         outerRadius =
-            arc.radius + 2
+            arc.radius + halfGauge
 
-        -- Approximate inner/outer endpoints (good enough for small gauge)
+        -- Calculate the center of the arc to determine proper offsets
+        -- We need to find perpendicular offsets at start and end points
+
+        -- Direction from start to end
+        chordVector =
+            Vec2.subtract arc.end arc.start
+
+        chordLength =
+            Vec2.length chordVector
+
+        -- Perpendicular to chord (points toward center for one direction)
+        perpToChord =
+            Vec2.normalize (Vec2.perpendicular chordVector)
+
+        -- Distance from chord midpoint to center
+        -- Using: h = sqrt(r^2 - (c/2)^2) where c is chord length
+        halfChord =
+            chordLength / 2
+
+        heightToCenter =
+            sqrt (max 0 (arc.radius * arc.radius - halfChord * halfChord))
+
+        -- Midpoint of chord
+        chordMid =
+            Vec2.scale 0.5 (Vec2.add arc.start arc.end)
+
+        -- Center is perpendicular from chord midpoint
+        -- sweepFlag determines which side
+        centerOffset =
+            if arc.sweepFlag == 1 then
+                Vec2.scale heightToCenter perpToChord
+            else
+                Vec2.scale -heightToCenter perpToChord
+
+        center =
+            Vec2.add chordMid centerOffset
+
+        -- Tangent at start (perpendicular to radius at start)
+        radiusAtStart =
+            Vec2.subtract arc.start center
+
+        tangentAtStart =
+            Vec2.normalize (Vec2.perpendicular radiusAtStart)
+
+        -- Tangent at end (perpendicular to radius at end)
+        radiusAtEnd =
+            Vec2.subtract arc.end center
+
+        tangentAtEnd =
+            Vec2.normalize (Vec2.perpendicular radiusAtEnd)
+
+        -- For CW arcs (sweepFlag = 1), tangent points in positive perpendicular direction
+        -- For CCW arcs (sweepFlag = 0), tangent points in negative perpendicular direction
+        -- We want rails offset perpendicular to tangent (i.e., radially)
+
+        -- Radial offset direction at start (toward/away from center)
+        radialDirStart =
+            Vec2.normalize radiusAtStart
+
+        radialDirEnd =
+            Vec2.normalize radiusAtEnd
+
+        -- Inner rail points (closer to center)
+        innerStart =
+            Vec2.subtract arc.start (Vec2.scale 2 radialDirStart)
+
+        innerEnd =
+            Vec2.subtract arc.end (Vec2.scale 2 radialDirEnd)
+
+        -- Outer rail points (farther from center)
+        outerStart =
+            Vec2.add arc.start (Vec2.scale 2 radialDirStart)
+
+        outerEnd =
+            Vec2.add arc.end (Vec2.scale 2 radialDirEnd)
+
         innerPath =
             "M "
-                ++ String.fromFloat arc.start.x
+                ++ String.fromFloat innerStart.x
                 ++ " "
-                ++ String.fromFloat (arc.start.y - 2)
+                ++ String.fromFloat innerStart.y
                 ++ " A "
                 ++ String.fromFloat innerRadius
                 ++ " "
@@ -284,15 +400,15 @@ renderArcRails arc =
                 ++ " 0 0 "
                 ++ String.fromInt arc.sweepFlag
                 ++ " "
-                ++ String.fromFloat arc.end.x
+                ++ String.fromFloat innerEnd.x
                 ++ " "
-                ++ String.fromFloat (arc.end.y - 2)
+                ++ String.fromFloat innerEnd.y
 
         outerPath =
             "M "
-                ++ String.fromFloat arc.start.x
+                ++ String.fromFloat outerStart.x
                 ++ " "
-                ++ String.fromFloat (arc.start.y + 2)
+                ++ String.fromFloat outerStart.y
                 ++ " A "
                 ++ String.fromFloat outerRadius
                 ++ " "
@@ -300,9 +416,9 @@ renderArcRails arc =
                 ++ " 0 0 "
                 ++ String.fromInt arc.sweepFlag
                 ++ " "
-                ++ String.fromFloat arc.end.x
+                ++ String.fromFloat outerEnd.x
                 ++ " "
-                ++ String.fromFloat (arc.end.y + 2)
+                ++ String.fromFloat outerEnd.y
     in
     Svg.g []
         [ Svg.path
