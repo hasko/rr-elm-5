@@ -40,6 +40,7 @@ import Util.Vec2 exposing (Vec2, vec2)
 
 type ElementId
     = TunnelPortalId
+    | WestTunnelPortalId
     | TurnoutId
     | PlatformSpotId
     | TeamTrackSpotId
@@ -170,8 +171,12 @@ trackLayout =
         -- Buffer stop at end of siding
         ( layout6, _ ) =
             TrackLayout.placeElementAt TrackElement.TrackEnd ( TrackElement.ElementId 5, 1 ) layout5
+
+        -- West tunnel portal at end of mainline west
+        ( layout7, _ ) =
+            TrackLayout.placeElementAt TrackElement.TrackEnd ( TrackElement.ElementId 3, 1 ) layout6
     in
-    layout6
+    layout7
 
 
 {-| Get the siding direction vector from the track layout.
@@ -241,10 +246,25 @@ interactiveElements turnoutState =
         bufferPos =
             pointAlongSiding 150
     in
+    let
+        -- Get West Station position from track layout (element 7, connector 0)
+        westPos =
+            case TrackLayout.getConnector (TrackElement.ElementId 7) 0 trackLayout of
+                Just c ->
+                    c.position
+
+                Nothing ->
+                    vec2 250 0
+    in
     [ { id = TunnelPortalId
       , element = TunnelPortal tunnelPos "East Station"
       , bounds = { x = tunnelPos.x - 20, y = tunnelPos.y - 20, width = 40, height = 40 }
       , tooltip = "East Station (spawn point)"
+      }
+    , { id = WestTunnelPortalId
+      , element = TunnelPortal westPos "West Station"
+      , bounds = { x = westPos.x - 20, y = westPos.y - 20, width = 40, height = 40 }
+      , tooltip = "West Station (spawn point)"
       }
     , { id = TurnoutId
       , element = Turnout turnoutPos 0 turnoutState

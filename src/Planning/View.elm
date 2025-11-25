@@ -1,0 +1,567 @@
+module Planning.View exposing (viewPlanningPanel)
+
+{-| View functions for the planning panel UI.
+-}
+
+import Html exposing (Html, button, div, label, option, select, span, text)
+import Html.Attributes exposing (selected, style, value)
+import Html.Events exposing (onClick, onInput)
+import Planning.Types as Planning
+    exposing
+        ( ConsistBuilder
+        , PlanningState
+        , ScheduledTrain
+        , SpawnPointId(..)
+        , SpawnPointInventory
+        , StockItem
+        , StockType(..)
+        )
+import Svg exposing (Svg)
+import Svg.Attributes as SvgA
+
+
+{-| Render the entire planning panel.
+-}
+viewPlanningPanel :
+    { state : PlanningState
+    , onClose : msg
+    , onSelectSpawnPoint : SpawnPointId -> msg
+    , onSelectStock : StockItem -> msg
+    , onPlaceInSlot : Int -> msg
+    , onRemoveFromSlot : Int -> msg
+    , onClearConsist : msg
+    , onSetHour : Int -> msg
+    , onSetMinute : Int -> msg
+    , onSetDay : Int -> msg
+    , onSchedule : msg
+    , onRemoveTrain : Int -> msg
+    }
+    -> Html msg
+viewPlanningPanel config =
+    div
+        [ style "width" "400px"
+        , style "background" "#1a1a2e"
+        , style "border-left" "2px solid #333"
+        , style "display" "flex"
+        , style "flex-direction" "column"
+        , style "font-family" "sans-serif"
+        , style "color" "#e0e0e0"
+        , style "overflow-y" "auto"
+        ]
+        [ viewPanelHeader config.onClose
+        , viewSpawnPointSelector config.state.selectedSpawnPoint config.onSelectSpawnPoint
+        , viewScheduledTrains config.state config.onRemoveTrain
+        , viewAvailableStock config.state config.onSelectStock
+        , viewConsistBuilder config.state.consistBuilder config.onPlaceInSlot config.onRemoveFromSlot config.onClearConsist
+        , viewScheduleControls config.state config.onSetDay config.onSetHour config.onSetMinute config.onSchedule
+        ]
+
+
+viewPanelHeader : msg -> Html msg
+viewPanelHeader onClose =
+    div
+        [ style "display" "flex"
+        , style "justify-content" "space-between"
+        , style "align-items" "center"
+        , style "padding" "12px 16px"
+        , style "background" "#252540"
+        , style "border-bottom" "1px solid #333"
+        ]
+        [ span
+            [ style "font-weight" "bold"
+            , style "font-size" "16px"
+            ]
+            [ text "Train Planning" ]
+        , button
+            [ style "background" "transparent"
+            , style "border" "none"
+            , style "color" "#e0e0e0"
+            , style "font-size" "20px"
+            , style "cursor" "pointer"
+            , style "padding" "4px 8px"
+            , onClick onClose
+            ]
+            [ text "X" ]
+        ]
+
+
+viewSpawnPointSelector : SpawnPointId -> (SpawnPointId -> msg) -> Html msg
+viewSpawnPointSelector selected onSelect =
+    div
+        [ style "padding" "12px 16px"
+        , style "border-bottom" "1px solid #333"
+        ]
+        [ label
+            [ style "display" "block"
+            , style "margin-bottom" "8px"
+            , style "font-size" "12px"
+            , style "color" "#888"
+            ]
+            [ text "SPAWN POINT" ]
+        , div [ style "display" "flex", style "gap" "8px" ]
+            [ viewSpawnPointButton EastStation "East Station" selected onSelect
+            , viewSpawnPointButton WestStation "West Station" selected onSelect
+            ]
+        ]
+
+
+viewSpawnPointButton : SpawnPointId -> String -> SpawnPointId -> (SpawnPointId -> msg) -> Html msg
+viewSpawnPointButton spawnId labelText selected onSelect =
+    let
+        isSelected =
+            spawnId == selected
+    in
+    button
+        [ style "flex" "1"
+        , style "padding" "8px 12px"
+        , style "border" "2px solid"
+        , style "border-color"
+            (if isSelected then
+                "#4a9eff"
+
+             else
+                "#444"
+            )
+        , style "background"
+            (if isSelected then
+                "#2a4a6e"
+
+             else
+                "#252540"
+            )
+        , style "color" "#e0e0e0"
+        , style "border-radius" "4px"
+        , style "cursor" "pointer"
+        , onClick (onSelect spawnId)
+        ]
+        [ text labelText ]
+
+
+viewScheduledTrains : PlanningState -> (Int -> msg) -> Html msg
+viewScheduledTrains state onRemove =
+    let
+        trainsForSpawnPoint =
+            state.scheduledTrains
+                |> List.filter (\t -> t.spawnPoint == state.selectedSpawnPoint)
+                |> List.sortBy (\t -> t.departureTime.day * 1440 + t.departureTime.hour * 60 + t.departureTime.minute)
+    in
+    div
+        [ style "padding" "12px 16px"
+        , style "border-bottom" "1px solid #333"
+        , style "max-height" "150px"
+        , style "overflow-y" "auto"
+        ]
+        [ label
+            [ style "display" "block"
+            , style "margin-bottom" "8px"
+            , style "font-size" "12px"
+            , style "color" "#888"
+            ]
+            [ text "SCHEDULED TRAINS" ]
+        , if List.isEmpty trainsForSpawnPoint then
+            div [ style "color" "#666", style "font-style" "italic" ]
+                [ text "No trains scheduled" ]
+
+          else
+            div [] (List.map (viewScheduledTrainItem onRemove) trainsForSpawnPoint)
+        ]
+
+
+viewScheduledTrainItem : (Int -> msg) -> ScheduledTrain -> Html msg
+viewScheduledTrainItem onRemove train =
+    div
+        [ style "display" "flex"
+        , style "justify-content" "space-between"
+        , style "align-items" "center"
+        , style "padding" "6px 8px"
+        , style "background" "#252540"
+        , style "border-radius" "4px"
+        , style "margin-bottom" "4px"
+        ]
+        [ div []
+            [ span [ style "font-weight" "bold" ]
+                [ text (formatDepartureTime train.departureTime) ]
+            , span [ style "color" "#888", style "margin-left" "8px" ]
+                [ text (String.fromInt (List.length train.consist) ++ " cars") ]
+            ]
+        , button
+            [ style "background" "#6a2a2a"
+            , style "border" "none"
+            , style "color" "#e0e0e0"
+            , style "padding" "4px 8px"
+            , style "border-radius" "2px"
+            , style "cursor" "pointer"
+            , onClick (onRemove train.id)
+            ]
+            [ text "X" ]
+        ]
+
+
+formatDepartureTime : Planning.DepartureTime -> String
+formatDepartureTime time =
+    let
+        dayName =
+            case time.day of
+                0 ->
+                    "Mon"
+
+                1 ->
+                    "Tue"
+
+                2 ->
+                    "Wed"
+
+                3 ->
+                    "Thu"
+
+                _ ->
+                    "Fri"
+
+        hourStr =
+            String.padLeft 2 '0' (String.fromInt time.hour)
+
+        minuteStr =
+            String.padLeft 2 '0' (String.fromInt time.minute)
+    in
+    dayName ++ " " ++ hourStr ++ ":" ++ minuteStr
+
+
+viewAvailableStock : PlanningState -> (StockItem -> msg) -> Html msg
+viewAvailableStock state onSelectStock =
+    let
+        inventory =
+            state.inventories
+                |> List.filter (\inv -> inv.spawnPointId == state.selectedSpawnPoint)
+                |> List.head
+                |> Maybe.map .availableStock
+                |> Maybe.withDefault []
+
+        -- Group by type and count
+        stockCounts =
+            groupAndCountStock inventory
+    in
+    div
+        [ style "padding" "12px 16px"
+        , style "border-bottom" "1px solid #333"
+        ]
+        [ label
+            [ style "display" "block"
+            , style "margin-bottom" "8px"
+            , style "font-size" "12px"
+            , style "color" "#888"
+            ]
+            [ text "AVAILABLE STOCK" ]
+        , div
+            [ style "display" "flex"
+            , style "gap" "12px"
+            , style "flex-wrap" "wrap"
+            ]
+            (List.map (viewStockTypeItem state.consistBuilder.selectedStock onSelectStock) stockCounts)
+        ]
+
+
+{-| Group stock items by type and return (type, count, representative item).
+-}
+groupAndCountStock : List StockItem -> List ( StockType, Int, StockItem )
+groupAndCountStock items =
+    let
+        stockTypes =
+            [ Locomotive, PassengerCar, Flatbed, Boxcar ]
+
+        countType stockType =
+            let
+                matching =
+                    List.filter (\s -> s.stockType == stockType) items
+            in
+            case matching of
+                first :: _ ->
+                    Just ( stockType, List.length matching, first )
+
+                [] ->
+                    Nothing
+    in
+    List.filterMap countType stockTypes
+
+
+viewStockTypeItem : Maybe StockItem -> (StockItem -> msg) -> ( StockType, Int, StockItem ) -> Html msg
+viewStockTypeItem selectedItem onSelect ( stockType, count, representative ) =
+    let
+        isSelected =
+            case selectedItem of
+                Just sel ->
+                    sel.stockType == stockType
+
+                Nothing ->
+                    False
+    in
+    div
+        [ style "position" "relative"
+        , style "cursor" "pointer"
+        , style "padding" "8px"
+        , style "background"
+            (if isSelected then
+                "#2a4a6e"
+
+             else
+                "#252540"
+            )
+        , style "border" "2px solid"
+        , style "border-color"
+            (if isSelected then
+                "#4a9eff"
+
+             else
+                "#444"
+            )
+        , style "border-radius" "4px"
+        , onClick (onSelect representative)
+        ]
+        [ viewStockSideProfile stockType
+        , div
+            [ style "position" "absolute"
+            , style "top" "-8px"
+            , style "right" "-8px"
+            , style "background" "#4a9eff"
+            , style "color" "#fff"
+            , style "border-radius" "50%"
+            , style "width" "20px"
+            , style "height" "20px"
+            , style "display" "flex"
+            , style "align-items" "center"
+            , style "justify-content" "center"
+            , style "font-size" "12px"
+            , style "font-weight" "bold"
+            ]
+            [ text (String.fromInt count) ]
+        ]
+
+
+viewStockSideProfile : StockType -> Html msg
+viewStockSideProfile stockType =
+    Svg.svg
+        [ SvgA.width "60"
+        , SvgA.height "30"
+        , SvgA.viewBox "0 0 60 30"
+        ]
+        (case stockType of
+            Locomotive ->
+                [ Svg.rect [ SvgA.x "5", SvgA.y "5", SvgA.width "50", SvgA.height "18", SvgA.fill "#4a6a8a", SvgA.rx "2" ] []
+                , Svg.rect [ SvgA.x "40", SvgA.y "2", SvgA.width "12", SvgA.height "8", SvgA.fill "#3a5a7a" ] []
+                , Svg.circle [ SvgA.cx "15", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+                , Svg.circle [ SvgA.cx "45", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+                ]
+
+            PassengerCar ->
+                [ Svg.rect [ SvgA.x "2", SvgA.y "6", SvgA.width "56", SvgA.height "14", SvgA.fill "#8a6a4a", SvgA.rx "2" ] []
+                , Svg.rect [ SvgA.x "8", SvgA.y "8", SvgA.width "8", SvgA.height "8", SvgA.fill "#aaa" ] []
+                , Svg.rect [ SvgA.x "26", SvgA.y "8", SvgA.width "8", SvgA.height "8", SvgA.fill "#aaa" ] []
+                , Svg.rect [ SvgA.x "44", SvgA.y "8", SvgA.width "8", SvgA.height "8", SvgA.fill "#aaa" ] []
+                , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+                , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+                ]
+
+            Flatbed ->
+                [ Svg.rect [ SvgA.x "2", SvgA.y "14", SvgA.width "56", SvgA.height "6", SvgA.fill "#6a5a4a" ] []
+                , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+                , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+                ]
+
+            Boxcar ->
+                [ Svg.rect [ SvgA.x "2", SvgA.y "4", SvgA.width "56", SvgA.height "16", SvgA.fill "#8a4a4a", SvgA.rx "2" ] []
+                , Svg.rect [ SvgA.x "22", SvgA.y "6", SvgA.width "16", SvgA.height "12", SvgA.fill "#6a3a3a" ] []
+                , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+                , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+                ]
+        )
+
+
+viewConsistBuilder : ConsistBuilder -> (Int -> msg) -> (Int -> msg) -> msg -> Html msg
+viewConsistBuilder builder onPlaceInSlot onRemoveFromSlot onClear =
+    div
+        [ style "padding" "12px 16px"
+        , style "border-bottom" "1px solid #333"
+        ]
+        [ div
+            [ style "display" "flex"
+            , style "justify-content" "space-between"
+            , style "align-items" "center"
+            , style "margin-bottom" "8px"
+            ]
+            [ label
+                [ style "font-size" "12px"
+                , style "color" "#888"
+                ]
+                [ text "CONSIST BUILDER" ]
+            , button
+                [ style "background" "#444"
+                , style "border" "none"
+                , style "color" "#e0e0e0"
+                , style "padding" "4px 8px"
+                , style "border-radius" "2px"
+                , style "cursor" "pointer"
+                , style "font-size" "11px"
+                , onClick onClear
+                ]
+                [ text "Clear" ]
+            ]
+        , div
+            [ style "display" "flex"
+            , style "gap" "4px"
+            , style "padding" "8px"
+            , style "background" "#151520"
+            , style "border-radius" "4px"
+            , style "min-height" "50px"
+            ]
+            (List.indexedMap (viewConsistSlot builder.selectedStock onPlaceInSlot onRemoveFromSlot) builder.slots)
+        , case builder.selectedStock of
+            Just stock ->
+                div
+                    [ style "margin-top" "8px"
+                    , style "color" "#4a9eff"
+                    , style "font-size" "12px"
+                    ]
+                    [ text ("Selected: " ++ Planning.stockTypeName stock.stockType ++ " - click a slot to place") ]
+
+            Nothing ->
+                div
+                    [ style "margin-top" "8px"
+                    , style "color" "#666"
+                    , style "font-size" "12px"
+                    ]
+                    [ text "Select stock from above to add to consist" ]
+        ]
+
+
+viewConsistSlot : Maybe StockItem -> (Int -> msg) -> (Int -> msg) -> Int -> Maybe StockItem -> Html msg
+viewConsistSlot selectedStock onPlaceInSlot onRemoveFromSlot index maybeStock =
+    div
+        [ style "width" "60px"
+        , style "height" "40px"
+        , style "border" "2px dashed #444"
+        , style "border-radius" "4px"
+        , style "display" "flex"
+        , style "align-items" "center"
+        , style "justify-content" "center"
+        , style "cursor" "pointer"
+        , style "position" "relative"
+        , onClick
+            (case maybeStock of
+                Nothing ->
+                    onPlaceInSlot index
+
+                Just _ ->
+                    onRemoveFromSlot index
+            )
+        ]
+        (case maybeStock of
+            Just stock ->
+                [ viewStockSideProfile stock.stockType ]
+
+            Nothing ->
+                [ span
+                    [ style "color" "#444"
+                    , style "font-size" "20px"
+                    ]
+                    [ text "+" ]
+                ]
+        )
+
+
+viewScheduleControls : PlanningState -> (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> msg -> Html msg
+viewScheduleControls state onSetDay onSetHour onSetMinute onSchedule =
+    div
+        [ style "padding" "12px 16px"
+        , style "background" "#252540"
+        ]
+        [ label
+            [ style "display" "block"
+            , style "margin-bottom" "8px"
+            , style "font-size" "12px"
+            , style "color" "#888"
+            ]
+            [ text "DEPARTURE TIME" ]
+        , div
+            [ style "display" "flex"
+            , style "gap" "8px"
+            , style "margin-bottom" "12px"
+            ]
+            [ viewDayPicker state.timePickerDay onSetDay
+            , viewTimePicker state.timePickerHour state.timePickerMinute onSetHour onSetMinute
+            ]
+        , button
+            [ style "width" "100%"
+            , style "padding" "12px"
+            , style "background" "#4a9eff"
+            , style "border" "none"
+            , style "color" "#fff"
+            , style "border-radius" "4px"
+            , style "cursor" "pointer"
+            , style "font-weight" "bold"
+            , style "font-size" "14px"
+            , onClick onSchedule
+            ]
+            [ text "Schedule Train" ]
+        ]
+
+
+viewDayPicker : Int -> (Int -> msg) -> Html msg
+viewDayPicker selectedDay onSetDay =
+    select
+        [ style "padding" "8px"
+        , style "background" "#1a1a2e"
+        , style "border" "1px solid #444"
+        , style "color" "#e0e0e0"
+        , style "border-radius" "4px"
+        , onInput (\s -> onSetDay (String.toInt s |> Maybe.withDefault 0))
+        ]
+        [ option [ value "0", selected (selectedDay == 0) ] [ text "Mon" ]
+        , option [ value "1", selected (selectedDay == 1) ] [ text "Tue" ]
+        , option [ value "2", selected (selectedDay == 2) ] [ text "Wed" ]
+        , option [ value "3", selected (selectedDay == 3) ] [ text "Thu" ]
+        , option [ value "4", selected (selectedDay == 4) ] [ text "Fri" ]
+        ]
+
+
+viewTimePicker : Int -> Int -> (Int -> msg) -> (Int -> msg) -> Html msg
+viewTimePicker hour minute onSetHour onSetMinute =
+    div [ style "display" "flex", style "gap" "4px" ]
+        [ select
+            [ style "padding" "8px"
+            , style "background" "#1a1a2e"
+            , style "border" "1px solid #444"
+            , style "color" "#e0e0e0"
+            , style "border-radius" "4px"
+            , style "width" "60px"
+            , onInput (\s -> onSetHour (String.toInt s |> Maybe.withDefault 0))
+            ]
+            (List.range 0 23
+                |> List.map
+                    (\h ->
+                        option
+                            [ value (String.fromInt h)
+                            , selected (h == hour)
+                            ]
+                            [ text (String.padLeft 2 '0' (String.fromInt h)) ]
+                    )
+            )
+        , span [ style "padding" "8px 0", style "color" "#e0e0e0" ] [ text ":" ]
+        , select
+            [ style "padding" "8px"
+            , style "background" "#1a1a2e"
+            , style "border" "1px solid #444"
+            , style "color" "#e0e0e0"
+            , style "border-radius" "4px"
+            , style "width" "60px"
+            , onInput (\s -> onSetMinute (String.toInt s |> Maybe.withDefault 0))
+            ]
+            (List.range 0 59
+                |> List.map
+                    (\m ->
+                        option
+                            [ value (String.fromInt m)
+                            , selected (m == minute)
+                            ]
+                            [ text (String.padLeft 2 '0' (String.fromInt m)) ]
+                    )
+            )
+        ]

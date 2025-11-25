@@ -11,6 +11,8 @@ import Browser.Events
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (style)
 import Json.Decode as Decode
+import Planning.Types as Planning exposing (SpawnPointId(..), StockItem, StockType(..))
+import Planning.View as PlanningView
 import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
 import Sawmill.View as SawmillView
 import Svg exposing (Svg, svg)
@@ -75,6 +77,9 @@ type alias Model =
 
     -- Panning state
     , dragState : Maybe DragState
+
+    -- Planning state
+    , planningState : Planning.PlanningState
     }
 
 
@@ -90,6 +95,7 @@ init _ =
       , turnoutState = Normal
       , hoveredElement = Nothing
       , dragState = Nothing
+      , planningState = Planning.initPlanningState
       }
     , Cmd.none
     )
@@ -110,6 +116,18 @@ type Msg
     | Drag Float Float -- Current screen x, y during drag
     | EndDrag -- Mouseup or mouseleave
     | NoOp
+      -- Planning panel messages
+    | ClosePlanningPanel
+    | SelectSpawnPoint SpawnPointId
+    | SelectStockItem StockItem
+    | PlaceStockInSlot Int
+    | RemoveStockFromSlot Int
+    | ClearConsistBuilder
+    | SetTimePickerHour Int
+    | SetTimePickerMinute Int
+    | SetTimePickerDay Int
+    | ScheduleTrain
+    | RemoveScheduledTrain Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -214,6 +232,367 @@ update msg model =
         NoOp ->
             ( model, Cmd.none )
 
+        -- Planning panel messages
+        ClosePlanningPanel ->
+            ( { model | mode = Paused }, Cmd.none )
+
+        SelectSpawnPoint spawnId ->
+            let
+                planning =
+                    model.planningState
+            in
+            ( { model | planningState = { planning | selectedSpawnPoint = spawnId } }
+            , Cmd.none
+            )
+
+        SelectStockItem stock ->
+            let
+                planning =
+                    model.planningState
+
+                builder =
+                    planning.consistBuilder
+
+                newBuilder =
+                    { builder | selectedStock = Just stock }
+            in
+            ( { model | planningState = { planning | consistBuilder = newBuilder } }
+            , Cmd.none
+            )
+
+        PlaceStockInSlot slotIndex ->
+            ( updatePlaceStockInSlot slotIndex model, Cmd.none )
+
+        RemoveStockFromSlot slotIndex ->
+            ( updateRemoveStockFromSlot slotIndex model, Cmd.none )
+
+        ClearConsistBuilder ->
+            let
+                planning =
+                    model.planningState
+
+                -- Return all stock from builder to inventory
+                stockToReturn =
+                    planning.consistBuilder.slots
+                        |> List.filterMap identity
+
+                newInventories =
+                    returnStockToInventory planning.selectedSpawnPoint stockToReturn planning.inventories
+            in
+            ( { model
+                | planningState =
+                    { planning
+                        | consistBuilder = Planning.emptyConsistBuilder
+                        , inventories = newInventories
+                    }
+              }
+            , Cmd.none
+            )
+
+        SetTimePickerHour hour ->
+            let
+                planning =
+                    model.planningState
+            in
+            ( { model | planningState = { planning | timePickerHour = hour } }
+            , Cmd.none
+            )
+
+        SetTimePickerMinute minute ->
+            let
+                planning =
+                    model.planningState
+            in
+            ( { model | planningState = { planning | timePickerMinute = minute } }
+            , Cmd.none
+            )
+
+        SetTimePickerDay day ->
+            let
+                planning =
+                    model.planningState
+            in
+            ( { model | planningState = { planning | timePickerDay = day } }
+            , Cmd.none
+            )
+
+        ScheduleTrain ->
+            ( updateScheduleTrain model, Cmd.none )
+
+        RemoveScheduledTrain trainId ->
+            ( updateRemoveScheduledTrain trainId model, Cmd.none )
+
+
+
+-- PLANNING HELPERS
+
+
+{-| Place selected stock item into a consist slot.
+-}
+updatePlaceStockInSlot : Int -> Model -> Model
+updatePlaceStockInSlot slotIndex model =
+    let
+        planning =
+            model.planningState
+
+        builder =
+            planning.consistBuilder
+    in
+    case builder.selectedStock of
+        Nothing ->
+            model
+
+        Just selectedStock ->
+            let
+                -- Find the inventory for current spawn point
+                maybeInventory =
+                    planning.inventories
+                        |> List.filter (\inv -> inv.spawnPointId == planning.selectedSpawnPoint)
+                        |> List.head
+
+                -- Check if stock of this type is available
+                stockAvailable =
+                    maybeInventory
+                        |> Maybe.map (\inv -> List.any (\s -> s.stockType == selectedStock.stockType) inv.availableStock)
+                        |> Maybe.withDefault False
+            in
+            if not stockAvailable then
+                model
+
+            else
+                let
+                    -- Take one item of this type from inventory
+                    ( maybeActualStock, newInventories ) =
+                        takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
+
+                    -- Place in slot
+                    newSlots =
+                        List.indexedMap
+                            (\i existing ->
+                                if i == slotIndex then
+                                    maybeActualStock
+
+                                else
+                                    existing
+                            )
+                            builder.slots
+
+                    -- Check if any of this type remain
+                    remainingOfType =
+                        newInventories
+                            |> List.filter (\inv -> inv.spawnPointId == planning.selectedSpawnPoint)
+                            |> List.head
+                            |> Maybe.map (\inv -> List.filter (\s -> s.stockType == selectedStock.stockType) inv.availableStock)
+                            |> Maybe.map List.length
+                            |> Maybe.withDefault 0
+
+                    -- Clear selection if no more of this type
+                    newSelection =
+                        if remainingOfType > 0 then
+                            builder.selectedStock
+
+                        else
+                            Nothing
+
+                    newBuilder =
+                        { builder | slots = newSlots, selectedStock = newSelection }
+                in
+                { model
+                    | planningState =
+                        { planning
+                            | consistBuilder = newBuilder
+                            , inventories = newInventories
+                        }
+                }
+
+
+{-| Remove stock from a consist slot and return to inventory.
+-}
+updateRemoveStockFromSlot : Int -> Model -> Model
+updateRemoveStockFromSlot slotIndex model =
+    let
+        planning =
+            model.planningState
+
+        builder =
+            planning.consistBuilder
+
+        maybeStock =
+            builder.slots
+                |> List.drop slotIndex
+                |> List.head
+                |> Maybe.andThen identity
+    in
+    case maybeStock of
+        Nothing ->
+            model
+
+        Just stock ->
+            let
+                newSlots =
+                    List.indexedMap
+                        (\i existing ->
+                            if i == slotIndex then
+                                Nothing
+
+                            else
+                                existing
+                        )
+                        builder.slots
+
+                newInventories =
+                    returnStockToInventory planning.selectedSpawnPoint [ stock ] planning.inventories
+
+                newBuilder =
+                    { builder | slots = newSlots }
+            in
+            { model
+                | planningState =
+                    { planning
+                        | consistBuilder = newBuilder
+                        , inventories = newInventories
+                    }
+            }
+
+
+{-| Schedule a train with the current consist.
+-}
+updateScheduleTrain : Model -> Model
+updateScheduleTrain model =
+    let
+        planning =
+            model.planningState
+
+        builder =
+            planning.consistBuilder
+
+        -- Extract consist from builder slots
+        consist =
+            builder.slots |> List.filterMap identity
+    in
+    if List.isEmpty consist then
+        -- Don't schedule empty trains
+        model
+
+    else
+        let
+            newTrain =
+                { id = planning.nextTrainId
+                , spawnPoint = planning.selectedSpawnPoint
+                , departureTime =
+                    { day = planning.timePickerDay
+                    , hour = planning.timePickerHour
+                    , minute = planning.timePickerMinute
+                    }
+                , consist = consist
+                }
+        in
+        { model
+            | planningState =
+                { planning
+                    | scheduledTrains = planning.scheduledTrains ++ [ newTrain ]
+                    , consistBuilder = Planning.emptyConsistBuilder
+                    , nextTrainId = planning.nextTrainId + 1
+                }
+        }
+
+
+{-| Remove a scheduled train and return its stock to inventory.
+-}
+updateRemoveScheduledTrain : Int -> Model -> Model
+updateRemoveScheduledTrain trainId model =
+    let
+        planning =
+            model.planningState
+
+        maybeTrain =
+            planning.scheduledTrains
+                |> List.filter (\t -> t.id == trainId)
+                |> List.head
+    in
+    case maybeTrain of
+        Nothing ->
+            model
+
+        Just train ->
+            let
+                newTrains =
+                    planning.scheduledTrains
+                        |> List.filter (\t -> t.id /= trainId)
+
+                newInventories =
+                    returnStockToInventory train.spawnPoint train.consist planning.inventories
+            in
+            { model
+                | planningState =
+                    { planning
+                        | scheduledTrains = newTrains
+                        , inventories = newInventories
+                    }
+            }
+
+
+{-| Take one stock item of a given type from a spawn point's inventory.
+-}
+takeStockFromInventory : SpawnPointId -> StockType -> List Planning.SpawnPointInventory -> ( Maybe StockItem, List Planning.SpawnPointInventory )
+takeStockFromInventory spawnId stockType inventories =
+    let
+        updateInventory inv =
+            if inv.spawnPointId == spawnId then
+                let
+                    ( taken, remaining ) =
+                        takeFirst (\s -> s.stockType == stockType) inv.availableStock
+                in
+                ( taken, { inv | availableStock = remaining } )
+
+            else
+                ( Nothing, inv )
+
+        ( takenItems, newInventories ) =
+            List.map updateInventory inventories
+                |> List.unzip
+
+        takenStock =
+            takenItems |> List.filterMap identity |> List.head
+    in
+    ( takenStock, newInventories )
+
+
+{-| Return stock items to a spawn point's inventory.
+-}
+returnStockToInventory : SpawnPointId -> List StockItem -> List Planning.SpawnPointInventory -> List Planning.SpawnPointInventory
+returnStockToInventory spawnId items inventories =
+    List.map
+        (\inv ->
+            if inv.spawnPointId == spawnId then
+                { inv | availableStock = inv.availableStock ++ items }
+
+            else
+                inv
+        )
+        inventories
+
+
+{-| Take the first item matching a predicate from a list.
+-}
+takeFirst : (a -> Bool) -> List a -> ( Maybe a, List a )
+takeFirst predicate list =
+    takeFirstHelper predicate [] list
+
+
+takeFirstHelper : (a -> Bool) -> List a -> List a -> ( Maybe a, List a )
+takeFirstHelper predicate acc list =
+    case list of
+        [] ->
+            ( Nothing, List.reverse acc )
+
+        x :: xs ->
+            if predicate x then
+                ( Just x, List.reverse acc ++ xs )
+
+            else
+                takeFirstHelper predicate (x :: acc) xs
+
 
 {-| Advance game time. 1 real second = 1 game minute.
 -}
@@ -279,8 +658,38 @@ view model =
         , style "flex-direction" "column"
         ]
         [ viewHeader model
-        , viewCanvas model
+        , viewMainContent model
         ]
+
+
+viewMainContent : Model -> Html Msg
+viewMainContent model =
+    case model.mode of
+        Planning ->
+            div
+                [ style "display" "flex"
+                , style "flex" "1"
+                , style "overflow" "hidden"
+                ]
+                [ div [ style "flex" "1" ] [ viewCanvas model ]
+                , PlanningView.viewPlanningPanel
+                    { state = model.planningState
+                    , onClose = ClosePlanningPanel
+                    , onSelectSpawnPoint = SelectSpawnPoint
+                    , onSelectStock = SelectStockItem
+                    , onPlaceInSlot = PlaceStockInSlot
+                    , onRemoveFromSlot = RemoveStockFromSlot
+                    , onClearConsist = ClearConsistBuilder
+                    , onSetHour = SetTimePickerHour
+                    , onSetMinute = SetTimePickerMinute
+                    , onSetDay = SetTimePickerDay
+                    , onSchedule = ScheduleTrain
+                    , onRemoveTrain = RemoveScheduledTrain
+                    }
+                ]
+
+        _ ->
+            viewCanvas model
 
 
 viewHeader : Model -> Html Msg

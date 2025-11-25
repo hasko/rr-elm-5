@@ -87,8 +87,16 @@
 - [ ] 8.3 Mode Switching
 
 ## Phase 9: Consist Planning UI
-- [ ] 9.1 Planning Screen
-- [ ] 9.2 Stock Arrangement
+- [x] 9.1 Planning Screen
+  - [x] Planning panel (right side, 400px)
+  - [x] Spawn point selector (East/West Station)
+  - [x] Available stock display with SVG profiles
+  - [x] Consist builder with click-to-select, click-to-place
+  - [x] Schedule controls (day/hour/minute pickers)
+  - [x] Scheduled trains list with remove button
+- [x] 9.2 Stock Arrangement
+  - [x] Per-spawn-point inventory
+  - [x] Stock types: Locomotive, PassengerCar, Flatbed, Boxcar
 
 ## Phase 10: Schedule Editor UI
 - [ ] 10.1 Order Blocks
