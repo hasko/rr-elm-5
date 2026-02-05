@@ -148,10 +148,6 @@ executeMoveTo deltaSeconds spotId train =
                 distanceToTarget =
                     (targetDistance - train.position) * directionSign
 
-                -- Buffer stop safety check
-                bufferStopDistance =
-                    bufferStopMargin train
-
                 -- Determine desired speed
                 ( desiredSpeed, newPosition ) =
                     if abs distanceToTarget < arrivalThreshold then
@@ -188,7 +184,7 @@ executeMoveTo deltaSeconds spotId train =
 
                 -- Apply buffer stop safety brake
                 ( finalSpeed, finalPosition ) =
-                    applyBufferStopBrake train bufferStopDistance desiredSpeed newPosition deltaSeconds
+                    applyBufferStopBrake train desiredSpeed newPosition deltaSeconds
             in
             if abs distanceToTarget < arrivalThreshold || (desiredSpeed == 0 && abs distanceToTarget < arrivalThreshold * 2) then
                 -- Arrived: advance to next order
@@ -231,24 +227,41 @@ coastToStop deltaSeconds train =
 
     else
         let
-            newSpeed =
-                max 0 (train.speed - braking * deltaSeconds)
-
-            avgSpeed =
-                (train.speed + newSpeed) / 2
-
-            directionSign =
-                case train.reverser of
-                    Forward ->
-                        1.0
-
-                    Reverse ->
-                        -1.0
-
-            newPosition =
-                train.position + avgSpeed * directionSign * deltaSeconds
+            ( brakedSpeed, brakedPosition ) =
+                applyBufferStopBrake train train.speed train.position deltaSeconds
         in
-        { train | speed = newSpeed, position = newPosition }
+        if brakedSpeed < train.speed then
+            -- Buffer stop braking took effect
+            { train | speed = brakedSpeed, position = brakedPosition }
+
+        else
+            -- Normal coasting deceleration
+            let
+                newSpeed =
+                    max 0 (train.speed - braking * deltaSeconds)
+
+                avgSpeed =
+                    (train.speed + newSpeed) / 2
+
+                directionSign =
+                    case train.reverser of
+                        Forward ->
+                            1.0
+
+                        Reverse ->
+                            -1.0
+
+                newPosition =
+                    clampPosition train.route (train.position + avgSpeed * directionSign * deltaSeconds)
+            in
+            { train | speed = newSpeed, position = newPosition }
+
+
+{-| Clamp position to stay within route boundaries.
+-}
+clampPosition : Route -> Float -> Float
+clampPosition route pos =
+    max 0 (min pos route.totalLength)
 
 
 {-| Advance program counter to the next order.
@@ -275,19 +288,15 @@ getOrder index orders =
         |> List.head
 
 
-{-| Calculate distance to buffer stop (end of route) for safety braking.
--}
-bufferStopMargin : ActiveTrain -> Float
-bufferStopMargin train =
-    train.route.totalLength - train.position
+{-| Apply emergency braking if approaching a route boundary.
 
+Forward travel: brake before route end (totalLength).
+Reverse travel: brake before route start (position 0).
 
-{-| Apply emergency braking if approaching buffer stop.
 -}
-applyBufferStopBrake : ActiveTrain -> Float -> Float -> Float -> Float -> ( Float, Float )
-applyBufferStopBrake train bufferDist speed position deltaSeconds =
+applyBufferStopBrake : ActiveTrain -> Float -> Float -> Float -> ( Float, Float )
+applyBufferStopBrake train speed position deltaSeconds =
     let
-        -- Only apply in forward direction
         isForward =
             case train.reverser of
                 Forward ->
@@ -298,8 +307,16 @@ applyBufferStopBrake train bufferDist speed position deltaSeconds =
 
         emergencyBrakeDist =
             (speed * speed) / (2 * emergencyBraking) + consistLength train.consist
+
+        -- Distance to the relevant route boundary
+        distanceToBoundary =
+            if isForward then
+                train.route.totalLength - train.position
+
+            else
+                train.position
     in
-    if isForward && bufferDist < emergencyBrakeDist && speed > 0 then
+    if distanceToBoundary < emergencyBrakeDist && speed > 0 then
         let
             brakedSpeed =
                 max 0 (speed - emergencyBraking * deltaSeconds)
@@ -307,12 +324,23 @@ applyBufferStopBrake train bufferDist speed position deltaSeconds =
             avgSpeed =
                 (speed + brakedSpeed) / 2
 
-            newPos =
-                train.position + avgSpeed * deltaSeconds
+            directionSign =
+                if isForward then
+                    1.0
 
-            -- Hard clamp: never exceed route length
+                else
+                    -1.0
+
+            newPos =
+                train.position + avgSpeed * directionSign * deltaSeconds
+
+            -- Hard clamp: never exceed route boundaries
             clampedPos =
-                min newPos train.route.totalLength
+                if isForward then
+                    min newPos train.route.totalLength
+
+                else
+                    max newPos 0
         in
         ( brakedSpeed, clampedPos )
 

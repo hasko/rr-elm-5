@@ -77,6 +77,7 @@ createActiveTrain switchState scheduled =
     , position = startPosition
     , speed = trainSpeed
     , route = route
+    , spawnPoint = scheduled.spawnPoint
     , program = scheduled.program
     , programCounter = 0
     , trainState =

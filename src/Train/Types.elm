@@ -10,7 +10,7 @@ module Train.Types exposing
 {-| Types for active trains in the simulation.
 -}
 
-import Planning.Types exposing (StockItem)
+import Planning.Types exposing (SpawnPointId, StockItem)
 import Programmer.Types exposing (Order, ReverserPosition(..), SwitchPosition)
 import Track.Element exposing (ElementId)
 import Util.Vec2 exposing (Vec2)
@@ -38,6 +38,7 @@ type alias ActiveTrain =
     , position : Float -- Distance of lead car front along route (meters)
     , speed : Float -- m/s (positive = forward along route)
     , route : Route
+    , spawnPoint : SpawnPointId -- Which direction this train travels
     , program : List Order
     , programCounter : Int
     , trainState : TrainState

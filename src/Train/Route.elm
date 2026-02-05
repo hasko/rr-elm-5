@@ -2,6 +2,7 @@ module Train.Route exposing
     ( buildRoute
     , eastToWestRoute
     , positionOnRoute
+    , rebuildRoute
     , spotPosition
     , westToEastRoute
     )
@@ -14,6 +15,7 @@ respecting turnout state to choose between through and diverging paths.
 -}
 
 import Array
+import Planning.Types exposing (SpawnPointId(..))
 import Programmer.Types exposing (SpotId(..))
 import Sawmill.Layout exposing (SwitchState(..), trackLayout)
 import Track.Element as Element
@@ -45,6 +47,23 @@ eastToWestRoute switchState =
 westToEastRoute : SwitchState -> Route
 westToEastRoute switchState =
     buildRoute (ElementId 7) 0 switchState trackLayout
+
+
+{-| Rebuild a route for a spawn point with a new switch state.
+
+The train's position (distance along route) remains valid because
+route segments before the turnout divergence are identical regardless
+of switch state. After the turnout, the route takes the new path.
+
+-}
+rebuildRoute : SpawnPointId -> SwitchState -> Route
+rebuildRoute spawnPoint switchState =
+    case spawnPoint of
+        EastStation ->
+            eastToWestRoute switchState
+
+        WestStation ->
+            westToEastRoute switchState
 
 
 {-| Build a route by walking the track layout graph from a starting connector.

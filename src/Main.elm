@@ -26,8 +26,10 @@ import Svg exposing (Svg, svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
 import Time
+import Track.Element
 import Train.Execution as Execution
 import Train.Movement as Movement
+import Train.Route as Route
 import Train.Spawn as Spawn
 import Train.Types exposing (ActiveTrain, Effect(..), TrainState(..))
 import Train.View as TrainView
@@ -178,6 +180,7 @@ restoreModel saved =
                     , position = t.position
                     , speed = t.speed
                     , route = Storage.routeForSpawnPoint t.spawnPoint turnoutState
+                    , spawnPoint = t.spawnPoint
                     , program = []
                     , programCounter = 0
                     , trainState = WaitingForOrders
@@ -302,16 +305,26 @@ update msg model =
                     newTurnoutState =
                         List.foldl applySwitchEffect model.turnoutState allEffects
 
-                    -- Move trains that are still using simple movement (no program)
+                    -- Rebuild routes if turnout state changed
+                    routeRebuiltTrains =
+                        if newTurnoutState /= model.turnoutState then
+                            List.map
+                                (\t ->
+                                    { t | route = Route.rebuildRoute t.spawnPoint newTurnoutState }
+                                )
+                                executedTrains
+
+                        else
+                            executedTrains
+
+                    -- Move trains that are still using simple movement (no program).
+                    -- Trains with programs are fully handled by stepProgram
+                    -- (including coasting to stop after program completion).
                     movedTrains =
-                        executedTrains
+                        routeRebuiltTrains
                             |> List.map
                                 (\t ->
-                                    if t.trainState == WaitingForOrders && t.speed > 0 then
-                                        Movement.updateTrain scaledDeltaSeconds t
-
-                                    else if t.trainState == WaitingForOrders && List.isEmpty t.program then
-                                        -- Trains without a program use simple movement
+                                    if List.isEmpty t.program then
                                         Movement.updateTrain scaledDeltaSeconds t
 
                                     else
@@ -398,8 +411,15 @@ update msg model =
 
                                 Reverse ->
                                     Normal
+
+                        rebuiltTrains =
+                            List.map
+                                (\t ->
+                                    { t | route = Route.rebuildRoute t.spawnPoint newState }
+                                )
+                                model.activeTrains
                     in
-                    ( { model | turnoutState = newState }, Cmd.none )
+                    ( { model | turnoutState = newState, activeTrains = rebuiltTrains }, Cmd.none )
 
                 TunnelPortalId ->
                     -- Open planning panel with East Station selected
@@ -667,7 +687,7 @@ extractSavedState model =
                     , consist = t.consist
                     , position = t.position
                     , speed = t.speed
-                    , spawnPoint = spawnPointForRoute t.route
+                    , spawnPoint = t.spawnPoint
                     }
                 )
                 validTrains
@@ -715,17 +735,51 @@ spawnPointForRoute route =
             EastStation
 
 
-{-| Determine the exit spawn point for a train's route.
-A train exits at the opposite end from where it spawned.
+{-| Determine the exit spawn point for a despawning train.
+
+Checks which tunnel the route ends at (the last segment's element ID).
+A train that reversed and returned to its origin will have a rebuilt route
+whose last segment is near the origin tunnel, so stock returns correctly.
+
+Falls back to opposite-of-spawn if the route end can't be identified
+(e.g., route ends at buffer stop -- shouldn't happen for despawning trains).
 -}
 exitSpawnPoint : Train.Types.Route -> SpawnPointId
 exitSpawnPoint route =
-    case spawnPointForRoute route of
-        EastStation ->
-            WestStation
+    case lastRouteSegment route.segments of
+        Just segment ->
+            if segment.elementId == Track.Element.ElementId 1 then
+                -- Route ends at mainline east (near East tunnel)
+                EastStation
 
-        WestStation ->
+            else if segment.elementId == Track.Element.ElementId 3 then
+                -- Route ends at mainline west (near West tunnel)
+                WestStation
+
+            else
+                -- Route ends at siding or other element; fall back
+                case spawnPointForRoute route of
+                    EastStation ->
+                        WestStation
+
+                    WestStation ->
+                        EastStation
+
+        Nothing ->
             EastStation
+
+
+lastRouteSegment : List Train.Types.RouteSegment -> Maybe Train.Types.RouteSegment
+lastRouteSegment segments =
+    case segments of
+        [] ->
+            Nothing
+
+        [ x ] ->
+            Just x
+
+        _ :: rest ->
+            lastRouteSegment rest
 
 
 
