@@ -26,9 +26,10 @@ import Svg exposing (Svg, svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
 import Time
+import Train.Execution as Execution
 import Train.Movement as Movement
 import Train.Spawn as Spawn
-import Train.Types exposing (ActiveTrain)
+import Train.Types exposing (ActiveTrain, Effect(..), TrainState(..))
 import Train.View as TrainView
 import Util.Vec2 as Vec2 exposing (Vec2)
 
@@ -176,7 +177,12 @@ restoreModel saved =
                     , consist = t.consist
                     , position = t.position
                     , speed = t.speed
-                    , route = Storage.routeForSpawnPoint t.spawnPoint
+                    , route = Storage.routeForSpawnPoint t.spawnPoint turnoutState
+                    , program = []
+                    , programCounter = 0
+                    , trainState = WaitingForOrders
+                    , reverser = Programmer.Forward
+                    , waitTimer = 0
                     }
                 )
                 saved.activeTrains
@@ -278,12 +284,62 @@ update msg model =
                             newElapsed
                             model.planningState.scheduledTrains
                             model.spawnedTrainIds
+                            model.turnoutState
 
-                    -- Update existing train positions
-                    updatedTrains =
+                    -- Execute programs and update positions
+                    executedResults =
                         model.activeTrains
-                            |> List.map (Movement.updateTrain scaledDeltaSeconds)
-                            |> List.filter (not << Movement.shouldDespawn)
+                            |> List.map (Execution.stepProgram scaledDeltaSeconds)
+
+                    executedTrains =
+                        List.map Tuple.first executedResults
+
+                    -- Collect all effects from execution
+                    allEffects =
+                        List.concatMap Tuple.second executedResults
+
+                    -- Apply switch effects to turnout state
+                    newTurnoutState =
+                        List.foldl applySwitchEffect model.turnoutState allEffects
+
+                    -- Move trains that are still using simple movement (no program)
+                    movedTrains =
+                        executedTrains
+                            |> List.map
+                                (\t ->
+                                    if t.trainState == WaitingForOrders && t.speed > 0 then
+                                        Movement.updateTrain scaledDeltaSeconds t
+
+                                    else if t.trainState == WaitingForOrders && List.isEmpty t.program then
+                                        -- Trains without a program use simple movement
+                                        Movement.updateTrain scaledDeltaSeconds t
+
+                                    else
+                                        t
+                                )
+
+                    -- Separate despawning trains from surviving trains
+                    despawningTrains =
+                        List.filter Movement.shouldDespawn movedTrains
+
+                    updatedTrains =
+                        List.filter (not << Movement.shouldDespawn) movedTrains
+
+                    -- Return despawned trains' consist items to exit station inventory
+                    newInventories =
+                        List.foldl
+                            (\train invs ->
+                                let
+                                    exitStation =
+                                        exitSpawnPoint train.route
+                                in
+                                returnStockToInventory exitStation train.consist invs
+                            )
+                            model.planningState.inventories
+                            despawningTrains
+
+                    planning =
+                        model.planningState
 
                     -- Combine trains
                     allTrains =
@@ -298,6 +354,8 @@ update msg model =
                     | gameTime = { elapsedSeconds = newElapsed }
                     , activeTrains = allTrains
                     , spawnedTrainIds = newSpawnedIds
+                    , planningState = { planning | inventories = newInventories }
+                    , turnoutState = newTurnoutState
                   }
                 , Cmd.none
                 )
@@ -552,6 +610,24 @@ update msg model =
 
 
 
+-- EFFECT HELPERS
+
+
+{-| Apply a switch effect to the turnout state.
+-}
+applySwitchEffect : Effect -> SwitchState -> SwitchState
+applySwitchEffect effect currentState =
+    case effect of
+        SetSwitchEffect _ pos ->
+            case pos of
+                Programmer.Normal ->
+                    Normal
+
+                Programmer.Diverging ->
+                    Reverse
+
+
+
 -- STORAGE HELPERS
 
 
@@ -636,6 +712,19 @@ spawnPointForRoute route =
                     EastStation
 
         Nothing ->
+            EastStation
+
+
+{-| Determine the exit spawn point for a train's route.
+A train exits at the opposite end from where it spawned.
+-}
+exitSpawnPoint : Train.Types.Route -> SpawnPointId
+exitSpawnPoint route =
+    case spawnPointForRoute route of
+        EastStation ->
+            WestStation
+
+        WestStation ->
             EastStation
 
 

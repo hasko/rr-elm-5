@@ -3,6 +3,7 @@ module Track.Layout exposing
     , Layout
     , connect
     , emptyLayout
+    , findConnected
     , findElement
     , getConnector
     , placeElement
@@ -143,3 +144,31 @@ getConnector : ElementId -> ConnectorIndex -> Layout -> Maybe Connector
 getConnector elementId connectorIdx layout =
     findElement elementId layout
         |> Maybe.andThen (\e -> Array.get connectorIdx e.connectors)
+
+
+{-| Find what a connector is connected to via the connection graph.
+Connections are bidirectional: if A->B exists, querying B returns A.
+Returns the (elementId, connectorIndex) of the connected endpoint.
+-}
+findConnected : ElementId -> ConnectorIndex -> Layout -> Maybe ( ElementId, ConnectorIndex )
+findConnected elementId connIdx layout =
+    let
+        needle =
+            ( elementId, connIdx )
+
+        search connections =
+            case connections of
+                [] ->
+                    Nothing
+
+                conn :: rest ->
+                    if conn.from == needle then
+                        Just conn.to
+
+                    else if conn.to == needle then
+                        Just conn.from
+
+                    else
+                        search rest
+    in
+    search layout.connections

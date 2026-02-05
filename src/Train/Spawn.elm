@@ -4,10 +4,12 @@ module Train.Spawn exposing (checkSpawns)
 -}
 
 import Planning.Types exposing (DepartureTime, ScheduledTrain, SpawnPointId(..))
+import Programmer.Types exposing (ReverserPosition(..))
+import Sawmill.Layout exposing (SwitchState)
 import Set exposing (Set)
 import Train.Route as Route
 import Train.Stock exposing (consistLength, trainSpeed)
-import Train.Types exposing (ActiveTrain, Route)
+import Train.Types exposing (ActiveTrain, Route, TrainState(..))
 
 
 {-| Check for trains that should spawn at the current elapsed time.
@@ -17,11 +19,12 @@ checkSpawns :
     Float
     -> List ScheduledTrain
     -> Set Int
+    -> SwitchState
     -> List ActiveTrain
-checkSpawns elapsedSeconds scheduledTrains spawnedIds =
+checkSpawns elapsedSeconds scheduledTrains spawnedIds switchState =
     scheduledTrains
         |> List.filter (\train -> shouldSpawn train elapsedSeconds spawnedIds)
-        |> List.map createActiveTrain
+        |> List.map (createActiveTrain switchState)
 
 
 {-| Check if a scheduled train should spawn.
@@ -52,16 +55,16 @@ departureTimeToSeconds { day, hour, minute } =
 
 {-| Create an ActiveTrain from a ScheduledTrain.
 -}
-createActiveTrain : ScheduledTrain -> ActiveTrain
-createActiveTrain scheduled =
+createActiveTrain : SwitchState -> ScheduledTrain -> ActiveTrain
+createActiveTrain switchState scheduled =
     let
         route =
             case scheduled.spawnPoint of
                 EastStation ->
-                    Route.eastToWestRoute
+                    Route.eastToWestRoute switchState
 
                 WestStation ->
-                    Route.westToEastRoute
+                    Route.westToEastRoute switchState
 
         -- Start position: negative so train is "inside" the tunnel
         -- Lead car front at 0 means the car just emerged
@@ -74,4 +77,14 @@ createActiveTrain scheduled =
     , position = startPosition
     , speed = trainSpeed
     , route = route
+    , program = scheduled.program
+    , programCounter = 0
+    , trainState =
+        if List.isEmpty scheduled.program then
+            WaitingForOrders
+
+        else
+            Executing
+    , reverser = Forward
+    , waitTimer = 0
     }

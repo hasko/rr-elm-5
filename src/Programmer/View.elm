@@ -278,6 +278,7 @@ viewOrderPalette onAddOrder =
             , viewReverserSelector onAddOrder
             , viewSwitchSelector onAddOrder
             , viewWaitSecondsSelector onAddOrder
+            , viewCoupleSelector onAddOrder
             ]
         ]
 
@@ -443,6 +444,61 @@ viewWaitSecondsSelector onAddOrder =
             , onClick (onAddOrder (WaitSeconds 60))
             ]
             [ text "60s" ]
+        ]
+
+
+viewCoupleSelector : (Order -> msg) -> Html msg
+viewCoupleSelector onAddOrder =
+    div [ style "display" "flex", style "gap" "8px", style "align-items" "center" ]
+        [ label [ style "width" "90px", style "font-size" "14px" ] [ text "Coupling" ]
+        , button
+            [ attribute "data-testid" "add-couple"
+            , style "background" "#3a5a5a"
+            , style "border" "none"
+            , style "color" "#e0e0e0"
+            , style "padding" "6px 10px"
+            , style "border-radius" "4px"
+            , style "cursor" "pointer"
+            , style "font-size" "12px"
+            , onClick (onAddOrder Couple)
+            ]
+            [ text "Couple" ]
+        , button
+            [ attribute "data-testid" "add-uncouple-1"
+            , style "background" "#5a3a3a"
+            , style "border" "none"
+            , style "color" "#e0e0e0"
+            , style "padding" "6px 10px"
+            , style "border-radius" "4px"
+            , style "cursor" "pointer"
+            , style "font-size" "12px"
+            , onClick (onAddOrder (Uncouple 1))
+            ]
+            [ text "Cut 1" ]
+        , button
+            [ attribute "data-testid" "add-uncouple-2"
+            , style "background" "#5a3a3a"
+            , style "border" "none"
+            , style "color" "#e0e0e0"
+            , style "padding" "6px 10px"
+            , style "border-radius" "4px"
+            , style "cursor" "pointer"
+            , style "font-size" "12px"
+            , onClick (onAddOrder (Uncouple 2))
+            ]
+            [ text "Cut 2" ]
+        , button
+            [ attribute "data-testid" "add-uncouple-3"
+            , style "background" "#5a3a3a"
+            , style "border" "none"
+            , style "color" "#e0e0e0"
+            , style "padding" "6px 10px"
+            , style "border-radius" "4px"
+            , style "cursor" "pointer"
+            , style "font-size" "12px"
+            , onClick (onAddOrder (Uncouple 3))
+            ]
+            [ text "Cut 3" ]
         ]
 
 

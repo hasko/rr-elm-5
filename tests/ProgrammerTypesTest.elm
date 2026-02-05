@@ -45,6 +45,18 @@ suite =
                 \_ ->
                     orderDescription (WaitSeconds 30)
                         |> Expect.equal "Wait 30 seconds"
+            , test "Couple shows correct description" <|
+                \_ ->
+                    orderDescription Couple
+                        |> Expect.equal "Couple"
+            , test "Uncouple 1 shows correct description" <|
+                \_ ->
+                    orderDescription (Uncouple 1)
+                        |> Expect.equal "Uncouple (keep 1)"
+            , test "Uncouple 3 shows correct description" <|
+                \_ ->
+                    orderDescription (Uncouple 3)
+                        |> Expect.equal "Uncouple (keep 3)"
             ]
         , describe "spotName"
             [ test "PlatformSpot returns Platform" <|
@@ -137,6 +149,29 @@ suite =
                             , "Set Reverser Reverse"
                             , "Move To Team Track"
                             , "Wait 60 seconds"
+                            , "Set Reverser Forward"
+                            , "Move To East Tunnel"
+                            ]
+            , test "program with coupling orders preserves sequence" <|
+                \_ ->
+                    let
+                        program =
+                            [ MoveTo TeamTrackSpot
+                            , Couple
+                            , SetReverser Reverse
+                            , MoveTo PlatformSpot
+                            , Uncouple 1
+                            , SetReverser Forward
+                            , MoveTo EastTunnelSpot
+                            ]
+                    in
+                    List.map orderDescription program
+                        |> Expect.equal
+                            [ "Move To Team Track"
+                            , "Couple"
+                            , "Set Reverser Reverse"
+                            , "Move To Platform"
+                            , "Uncouple (keep 1)"
                             , "Set Reverser Forward"
                             , "Move To East Tunnel"
                             ]

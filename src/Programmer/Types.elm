@@ -45,6 +45,8 @@ type Order
     | SetReverser ReverserPosition
     | SetSwitch String SwitchPosition
     | WaitSeconds Int
+    | Couple
+    | Uncouple Int
 
 
 {-| A program is a sequence of orders.
@@ -119,3 +121,9 @@ orderDescription order =
 
         WaitSeconds n ->
             "Wait " ++ String.fromInt n ++ " seconds"
+
+        Couple ->
+            "Couple"
+
+        Uncouple n ->
+            "Uncouple (keep " ++ String.fromInt n ++ ")"

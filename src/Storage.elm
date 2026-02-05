@@ -13,6 +13,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Planning.Types exposing (DepartureTime, ScheduledTrain, SpawnPointId(..), SpawnPointInventory, StockItem, StockType(..))
 import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SwitchPosition(..))
+import Sawmill.Layout exposing (SwitchState)
 import Train.Route as Route
 import Train.Types exposing (Route)
 
@@ -46,16 +47,16 @@ type alias SavedTrain =
     }
 
 
-{-| Get route for a spawn point.
+{-| Get route for a spawn point with the given turnout state.
 -}
-routeForSpawnPoint : SpawnPointId -> Route
-routeForSpawnPoint spawnPoint =
+routeForSpawnPoint : SpawnPointId -> SwitchState -> Route
+routeForSpawnPoint spawnPoint switchState =
     case spawnPoint of
         EastStation ->
-            Route.eastToWestRoute
+            Route.eastToWestRoute switchState
 
         WestStation ->
-            Route.westToEastRoute
+            Route.westToEastRoute switchState
 
 
 
@@ -183,6 +184,17 @@ encodeOrder order =
             Encode.object
                 [ ( "type", Encode.string "WaitSeconds" )
                 , ( "seconds", Encode.int n )
+                ]
+
+        Couple ->
+            Encode.object
+                [ ( "type", Encode.string "Couple" )
+                ]
+
+        Uncouple n ->
+            Encode.object
+                [ ( "type", Encode.string "Uncouple" )
+                , ( "keep", Encode.int n )
                 ]
 
 
@@ -387,6 +399,12 @@ decodeOrder =
 
                     "WaitSeconds" ->
                         Decode.map WaitSeconds (Decode.field "seconds" Decode.int)
+
+                    "Couple" ->
+                        Decode.succeed Couple
+
+                    "Uncouple" ->
+                        Decode.map Uncouple (Decode.field "keep" Decode.int)
 
                     _ ->
                         Decode.fail ("Unknown order type: " ++ orderType)

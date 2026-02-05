@@ -225,6 +225,9 @@ roundTripTests =
                         , SetSwitch "main" Normal
                         , SetSwitch "siding" Diverging
                         , WaitSeconds 42
+                        , Couple
+                        , Uncouple 1
+                        , Uncouple 3
                         ]
 
                     state =
@@ -395,6 +398,79 @@ edgeCaseTests =
 
                     Ok _ ->
                         Expect.fail "Should have failed to decode invalid JSON"
+        , test "Couple order round-trips" <|
+            \_ ->
+                let
+                    state =
+                        { minimalState
+                            | scheduledTrains =
+                                [ { id = 1
+                                  , spawnPoint = EastStation
+                                  , departureTime = { day = 0, hour = 0, minute = 0 }
+                                  , consist = [ { id = 1, stockType = Locomotive } ]
+                                  , program = [ Couple ]
+                                  }
+                                ]
+                        }
+                in
+                case roundTrip state of
+                    Ok decoded ->
+                        decoded.scheduledTrains
+                            |> List.head
+                            |> Maybe.map .program
+                            |> Expect.equal (Just [ Couple ])
+
+                    Err err ->
+                        Expect.fail ("Decode failed: " ++ Decode.errorToString err)
+        , test "Uncouple order round-trips with keep count" <|
+            \_ ->
+                let
+                    state =
+                        { minimalState
+                            | scheduledTrains =
+                                [ { id = 1
+                                  , spawnPoint = EastStation
+                                  , departureTime = { day = 0, hour = 0, minute = 0 }
+                                  , consist = [ { id = 1, stockType = Locomotive } ]
+                                  , program = [ Uncouple 2 ]
+                                  }
+                                ]
+                        }
+                in
+                case roundTrip state of
+                    Ok decoded ->
+                        decoded.scheduledTrains
+                            |> List.head
+                            |> Maybe.map .program
+                            |> Expect.equal (Just [ Uncouple 2 ])
+
+                    Err err ->
+                        Expect.fail ("Decode failed: " ++ Decode.errorToString err)
+        , test "old saves without Couple/Uncouple still decode" <|
+            \_ ->
+                -- Simulate an old save that only has the original order types
+                let
+                    state =
+                        { minimalState
+                            | scheduledTrains =
+                                [ { id = 1
+                                  , spawnPoint = EastStation
+                                  , departureTime = { day = 0, hour = 0, minute = 0 }
+                                  , consist = [ { id = 1, stockType = Locomotive } ]
+                                  , program = [ SetReverser Forward, MoveTo PlatformSpot ]
+                                  }
+                                ]
+                        }
+                in
+                case roundTrip state of
+                    Ok decoded ->
+                        decoded.scheduledTrains
+                            |> List.head
+                            |> Maybe.map .program
+                            |> Expect.equal (Just [ SetReverser Forward, MoveTo PlatformSpot ])
+
+                    Err err ->
+                        Expect.fail ("Decode failed: " ++ Decode.errorToString err)
         , test "nextTrainId preserves high values" <|
             \_ ->
                 let
