@@ -6,6 +6,7 @@ module Train.View exposing (viewTrains)
 import Planning.Types exposing (StockItem, StockType(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
+import Html.Attributes
 import Train.Route as Route
 import Train.Stock exposing (couplerGap, stockLength)
 import Train.Types exposing (ActiveTrain)
@@ -89,6 +90,22 @@ positionCars train =
     List.reverse reversedCars
 
 
+stockTypeTestId : StockType -> String
+stockTypeTestId stockType =
+    case stockType of
+        Locomotive ->
+            "locomotive"
+
+        PassengerCar ->
+            "passenger"
+
+        Flatbed ->
+            "flatbed"
+
+        Boxcar ->
+            "boxcar"
+
+
 {-| Render a single car at its position on the track.
 -}
 viewTrainCar : Vec2 -> Float -> StockType -> Svg msg
@@ -109,7 +126,10 @@ viewTrainCar position orientation stockType =
                 ++ String.fromFloat rotationDeg
                 ++ ")"
     in
-    Svg.g [ SvgA.transform transform ]
+    Svg.g
+        [ SvgA.transform transform
+        , Html.Attributes.attribute "data-testid" ("train-car-" ++ stockTypeTestId stockType)
+        ]
         (case stockType of
             Flatbed ->
                 viewFlatbed

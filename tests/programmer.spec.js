@@ -8,7 +8,7 @@ test.describe('Train Programmer', () => {
 
     // Create a train first so we can program it
     // Select locomotive
-    const locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
     await page.locator('button:has-text("+")').first().click();
 

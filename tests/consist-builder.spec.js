@@ -22,7 +22,7 @@ test.describe('Train Planning - Consist Builder', () => {
 
   test('Scenario 2: Select stock makes + buttons highlighted', async ({ page }) => {
     // Click on a locomotive to select it (click on the clickable div wrapper)
-    const locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
 
     // Verify selection indicator appears
@@ -35,7 +35,7 @@ test.describe('Train Planning - Consist Builder', () => {
 
   test('Scenario 3: Add locomotive to consist shows [+] [loco] [+] pattern', async ({ page }) => {
     // Select locomotive
-    const locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
 
     // Click + button to add
@@ -48,12 +48,12 @@ test.describe('Train Planning - Consist Builder', () => {
 
     // Verify locomotive item appears in consist by checking for locomotive icon in the dark background area
     // The consist builder has a dark background (#151520) where items are displayed
-    await expect(page.locator('div[style*="background: rgb(21, 21, 32)"]').locator('rect[fill="#4a6a8a"]')).toHaveCount(1);
+    await expect(page.getByTestId('consist-area').getByTestId('consist-item-locomotive')).toHaveCount(1);
   });
 
   test('Scenario 4: Schedule button enabled when locomotive is in consist', async ({ page }) => {
     // Add locomotive
-    const locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
     await page.locator('button:has-text("+")').first().click();
 
@@ -68,7 +68,7 @@ test.describe('Train Planning - Consist Builder', () => {
     // We'll build a train with all three to test front/back adding
 
     // Add locomotive first (middle position)
-    const locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
     await page.locator('button:has-text("+")').first().click();
 
@@ -77,57 +77,56 @@ test.describe('Train Planning - Consist Builder', () => {
     await expect(addButtons).toHaveCount(2);
 
     // Add flatbed to back
-    const flatbedStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#6a5a4a"]') }).first();
+    const flatbedStock = page.getByTestId('stock-flatbed');
     await flatbedStock.click();
     await addButtons.last().click();
 
     // Now we have [+] [loco] [flatbed] [+] - verify
-    const consistArea = page.locator('div[style*="background: rgb(21, 21, 32)"]');
-    await expect(consistArea.locator('rect[fill="#4a6a8a"]')).toHaveCount(1);
-    await expect(consistArea.locator('rect[fill="#6a5a4a"]')).toHaveCount(1);
+    const consistArea = page.getByTestId('consist-area');
+    await expect(consistArea.getByTestId('consist-item-locomotive')).toHaveCount(1);
+    await expect(consistArea.getByTestId('consist-item-flatbed')).toHaveCount(1);
 
     // Add passenger car to front
-    const passengerCarStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#8a6a4a"]') }).first();
+    const passengerCarStock = page.getByTestId('stock-passenger');
     await passengerCarStock.click();
     await addButtons.first().click();
 
     // Now we should have 3 items: [+] [passenger] [loco] [flatbed] [+]
-    await expect(consistArea.locator('rect[fill="#8a6a4a"]')).toHaveCount(1);
-    await expect(consistArea.locator('rect[fill="#4a6a8a"]')).toHaveCount(1);
-    await expect(consistArea.locator('rect[fill="#6a5a4a"]')).toHaveCount(1);
+    await expect(consistArea.getByTestId('consist-item-passenger')).toHaveCount(1);
+    await expect(consistArea.getByTestId('consist-item-locomotive')).toHaveCount(1);
+    await expect(consistArea.getByTestId('consist-item-flatbed')).toHaveCount(1);
   });
 
   test('Scenario 6: Remove item with X button compacts consist', async ({ page }) => {
     // Build a consist: loco + flatbed
-    const locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
     await page.locator('button:has-text("+")').first().click();
 
-    const flatbedStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#6a5a4a"]') }).first();
+    const flatbedStock = page.getByTestId('stock-flatbed');
     await flatbedStock.click();
     await page.locator('button:has-text("+")').last().click();
 
     // Verify 2 items in consist (should have both loco and flatbed icons in consist builder)
-    const consistArea = page.locator('div[style*="background: rgb(21, 21, 32)"]');
-    await expect(consistArea.locator('rect[fill="#4a6a8a"]')).toHaveCount(1);
-    await expect(consistArea.locator('rect[fill="#6a5a4a"]')).toHaveCount(1);
+    const consistArea = page.getByTestId('consist-area');
+    await expect(consistArea.getByTestId('consist-item-locomotive')).toHaveCount(1);
+    await expect(consistArea.getByTestId('consist-item-flatbed')).toHaveCount(1);
 
     // Click X button on first consist item (small circular button with position: absolute)
     const xButton = consistArea.locator('button[style*="position: absolute"]').first();
     await xButton.click();
 
-    // Wait a moment for the removal to process
-    await page.waitForTimeout(100);
-
-    // Should now have only 1 item - verify by checking that we have one of the two types
-    const locoCount = await consistArea.locator('rect[fill="#4a6a8a"]').count();
-    const flatbedCount = await consistArea.locator('rect[fill="#6a5a4a"]').count();
-    expect(locoCount + flatbedCount).toBe(1);
+    // Should now have only 1 item - poll until removal completes
+    await expect(async () => {
+      const locoCount = await consistArea.getByTestId('consist-item-locomotive').count();
+      const flatbedCount = await consistArea.getByTestId('consist-item-flatbed').count();
+      expect(locoCount + flatbedCount).toBe(1);
+    }).toPass({ timeout: 2000 });
   });
 
   test('Scenario 7: Schedule train adds it to scheduled trains list', async ({ page }) => {
     // Build a consist with locomotive
-    const locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
     await page.locator('button:has-text("+")').first().click();
 
@@ -150,7 +149,7 @@ test.describe('Train Planning - Consist Builder', () => {
 
   test('Scenario 8: Click scheduled train to edit changes button to Update Train', async ({ page }) => {
     // Schedule a train first
-    const locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
     await page.locator('button:has-text("+")').first().click();
 
@@ -169,8 +168,8 @@ test.describe('Train Planning - Consist Builder', () => {
     await expect(scheduleButton).toBeEnabled();
 
     // Verify consist is loaded into builder (locomotive icon should be present)
-    const consistArea = page.locator('div[style*="background: rgb(21, 21, 32)"]');
-    await expect(consistArea.locator('rect[fill="#4a6a8a"]')).toHaveCount(1);
+    const consistArea = page.getByTestId('consist-area');
+    await expect(consistArea.getByTestId('consist-item-locomotive')).toHaveCount(1);
 
     // Note: When editing, the train is temporarily removed from the list, so checking the border
     // on the train row wouldn't work. Instead, we verify the button text changed to "Update Train"
@@ -178,7 +177,7 @@ test.describe('Train Planning - Consist Builder', () => {
 
   test('Scenario 9: Clear consist returns to initial state', async ({ page }) => {
     // Add locomotive
-    const locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
     await page.locator('button:has-text("+")').first().click();
 
@@ -203,9 +202,8 @@ test.describe('Train Planning - Consist Builder', () => {
     await expect(eastButton).toHaveCSS('border-color', /rgb\(74, 158, 255\)/);
 
     // Count initial stock types - East has locomotive, passenger car, flatbed
-    const availableStockSection = page.locator('text=AVAILABLE STOCK').locator('..');
-    const eastStockCount = await availableStockSection.locator('div[style*="cursor: pointer"]').count();
-    expect(eastStockCount).toBe(3);
+    const eastStockItems = page.locator('[data-testid^="stock-"]');
+    await expect(eastStockItems).toHaveCount(3);
 
     // Switch to West Station
     const westButton = page.getByRole('button', { name: 'West Station' });
@@ -213,11 +211,10 @@ test.describe('Train Planning - Consist Builder', () => {
     await expect(westButton).toHaveCSS('border-color', /rgb\(74, 158, 255\)/);
 
     // Count West stock types - West has locomotive, boxcar (2x but shows as 1 type)
-    const westStockCount = await availableStockSection.locator('div[style*="cursor: pointer"]').count();
-    expect(westStockCount).toBe(2);
+    await expect(page.locator('[data-testid^="stock-"]')).toHaveCount(2);
 
     // Verify boxcar is present (red color #8a4a4a)
-    const boxcarStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#8a4a4a"]') });
+    const boxcarStock = page.getByTestId('stock-boxcar');
     await expect(boxcarStock).toHaveCount(1);
   });
 
@@ -227,7 +224,7 @@ test.describe('Train Planning - Consist Builder', () => {
     await page.getByRole('button', { name: 'West Station' }).click();
 
     // Step 1: Build initial consist with just locomotive
-    let locomotiveStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#4a6a8a"]') }).first();
+    let locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
     await page.locator('button:has-text("+")').first().click();
 
@@ -245,7 +242,7 @@ test.describe('Train Planning - Consist Builder', () => {
     await expect(scheduleButton).toHaveText('Update Train');
 
     // Step 5: Add first boxcar
-    const boxcarStock = page.locator('div[style*="cursor: pointer"]').filter({ has: page.locator('rect[fill="#8a4a4a"]') }).first();
+    const boxcarStock = page.getByTestId('stock-boxcar').first();
     await boxcarStock.click();
     await page.locator('button:has-text("+")').last().click();
 
@@ -253,9 +250,9 @@ test.describe('Train Planning - Consist Builder', () => {
     await page.locator('button:has-text("+")').last().click();
 
     // Step 7: Verify consist now has 3 items before updating (loco + 2 boxcars)
-    const consistArea = page.locator('div[style*="background: rgb(21, 21, 32)"]');
-    await expect(consistArea.locator('rect[fill="#4a6a8a"]')).toHaveCount(1);
-    await expect(consistArea.locator('rect[fill="#8a4a4a"]')).toHaveCount(2);
+    const consistArea = page.getByTestId('consist-area');
+    await expect(consistArea.getByTestId('consist-item-locomotive')).toHaveCount(1);
+    await expect(consistArea.getByTestId('consist-item-boxcar')).toHaveCount(2);
 
     // Verify button is enabled and says "Update Train"
     await expect(scheduleButton).toBeEnabled();

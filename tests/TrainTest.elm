@@ -2,6 +2,7 @@ module TrainTest exposing (..)
 
 import Expect
 import Planning.Types exposing (DepartureTime, ScheduledTrain, SpawnPointId(..), StockItem, StockType(..))
+import Planning.Helpers exposing (returnStockToInventory)
 import Programmer.Types exposing (Order(..), SpotId(..))
 import Train.Execution as Execution
 import Sawmill.Layout exposing (SwitchState(..), trackLayout)
@@ -921,5 +922,342 @@ executionTests =
                         , \_ -> effects2 |> Expect.equal [ SetSwitchEffect "turnout1" Programmer.Types.Normal ]
                         ]
                         ()
+            ]
+        , describe "program completion"
+            [ test "single instant order transitions to WaitingForOrders" <|
+                \_ ->
+                    let
+                        train =
+                            executingTrain [ Programmer.Types.SetReverser Programmer.Types.Forward ]
+
+                        ( result, _ ) =
+                            Execution.stepProgram 0.1 train
+                    in
+                    Expect.all
+                        [ \r -> r.trainState |> Expect.equal WaitingForOrders
+                        , \r -> r.programCounter |> Expect.equal 1
+                        ]
+                        result
+            , test "empty program immediately transitions to WaitingForOrders" <|
+                \_ ->
+                    let
+                        train =
+                            executingTrain []
+
+                        ( result, _ ) =
+                            Execution.stepProgram 0.1 train
+                    in
+                    result.trainState |> Expect.equal WaitingForOrders
+            , test "program counter equals program length after completion" <|
+                \_ ->
+                    let
+                        train =
+                            executingTrain
+                                [ Programmer.Types.SetReverser Programmer.Types.Forward
+                                , Programmer.Types.SetReverser Programmer.Types.Reverse
+                                ]
+
+                        ( step1, _ ) =
+                            Execution.stepProgram 0.1 train
+
+                        ( step2, _ ) =
+                            Execution.stepProgram 0.1 step1
+                    in
+                    Expect.all
+                        [ \r -> r.programCounter |> Expect.equal 2
+                        , \r -> r.trainState |> Expect.equal WaitingForOrders
+                        ]
+                        step2
+            ]
+        , describe "buffer stop auto-braking"
+            [ test "train near end of route has speed reduced" <|
+                \_ ->
+                    let
+                        route =
+                            Route.eastToWestRoute Reverse
+
+                        -- Position train very close to route end, moving forward
+                        train =
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , position = route.totalLength - 5
+                            , speed = 10.0
+                            , route = route
+                            , program = [ Programmer.Types.MoveTo TeamTrackSpot ]
+                            , programCounter = 0
+                            , trainState = Executing
+                            , reverser = Programmer.Types.Forward
+                            , waitTimer = 0
+                            }
+
+                        ( result, _ ) =
+                            Execution.stepProgram 0.5 train
+                    in
+                    -- Speed should be reduced or position clamped
+                    Expect.all
+                        [ \r -> r.position |> Expect.atMost route.totalLength
+                        , \r -> r.speed |> Expect.lessThan 10.0
+                        ]
+                        result
+            , test "train position never exceeds route total length" <|
+                \_ ->
+                    let
+                        route =
+                            Route.eastToWestRoute Reverse
+
+                        train =
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , position = route.totalLength - 1
+                            , speed = 20.0
+                            , route = route
+                            , program = [ Programmer.Types.MoveTo TeamTrackSpot ]
+                            , programCounter = 0
+                            , trainState = Executing
+                            , reverser = Programmer.Types.Forward
+                            , waitTimer = 0
+                            }
+
+                        -- Step multiple times to push against buffer stop
+                        ( step1, _ ) =
+                            Execution.stepProgram 0.5 train
+
+                        ( step2, _ ) =
+                            Execution.stepProgram 0.5 step1
+
+                        ( step3, _ ) =
+                            Execution.stepProgram 0.5 step2
+                    in
+                    step3.position |> Expect.atMost route.totalLength
+            ]
+        , describe "reversal with MoveTo"
+            [ test "SetReverser Reverse then MoveTo goes backward" <|
+                \_ ->
+                    let
+                        route =
+                            Route.eastToWestRoute Reverse
+
+                        -- Get platform position on this route
+                        platformDist =
+                            Route.spotPosition PlatformSpot route
+                                |> Maybe.withDefault 300
+
+                        train =
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , position = platformDist + 50
+                            , speed = 0
+                            , route = route
+                            , program =
+                                [ Programmer.Types.SetReverser Programmer.Types.Reverse
+                                , Programmer.Types.MoveTo PlatformSpot
+                                ]
+                            , programCounter = 0
+                            , trainState = Executing
+                            , reverser = Programmer.Types.Forward
+                            , waitTimer = 0
+                            }
+
+                        -- Step 1: SetReverser (instant)
+                        ( step1, _ ) =
+                            Execution.stepProgram 0.1 train
+
+                        -- Step 2+: MoveTo should accelerate backward (toward lower position)
+                        ( step2, _ ) =
+                            Execution.stepProgram 1.0 step1
+                    in
+                    Expect.all
+                        [ \_ -> step1.reverser |> Expect.equal Programmer.Types.Reverse
+                        , \_ -> step2.speed |> Expect.greaterThan 0
+                        , \_ -> step2.position |> Expect.lessThan (platformDist + 50)
+                        ]
+                        ()
+            , test "MoveTo target behind train in Forward direction stops (overshoot)" <|
+                \_ ->
+                    let
+                        route =
+                            Route.eastToWestRoute Reverse
+
+                        platformDist =
+                            Route.spotPosition PlatformSpot route
+                                |> Maybe.withDefault 300
+
+                        -- Position past the platform, reverser Forward
+                        train =
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , position = platformDist + 50
+                            , speed = 0
+                            , route = route
+                            , program = [ Programmer.Types.MoveTo PlatformSpot ]
+                            , programCounter = 0
+                            , trainState = Executing
+                            , reverser = Programmer.Types.Forward
+                            , waitTimer = 0
+                            }
+
+                        ( result, _ ) =
+                            Execution.stepProgram 0.5 train
+                    in
+                    -- Target is behind in forward direction: speed should be 0
+                    result.speed |> Expect.equal 0
+            ]
+        , describe "MoveTo arrival and advance"
+            [ test "MoveTo reaches target and advances program counter" <|
+                \_ ->
+                    let
+                        route =
+                            Route.eastToWestRoute Reverse
+
+                        platformDist =
+                            Route.spotPosition PlatformSpot route
+                                |> Maybe.withDefault 300
+
+                        -- Place train very close to target (within arrival threshold)
+                        train =
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , position = platformDist - 0.3
+                            , speed = 1.0
+                            , route = route
+                            , program = [ Programmer.Types.MoveTo PlatformSpot ]
+                            , programCounter = 0
+                            , trainState = Executing
+                            , reverser = Programmer.Types.Forward
+                            , waitTimer = 0
+                            }
+
+                        ( result, _ ) =
+                            Execution.stepProgram 0.5 train
+                    in
+                    Expect.all
+                        [ \r -> r.programCounter |> Expect.equal 1
+                        , \r -> r.speed |> Expect.equal 0
+                        , \r -> r.position |> Expect.within (Expect.Absolute 0.01) platformDist
+                        , \r -> r.trainState |> Expect.equal WaitingForOrders
+                        ]
+                        result
+            ]
+        , describe "spawned train program state"
+            [ test "spawned train with program starts in Executing state" <|
+                \_ ->
+                    let
+                        scheduled =
+                            [ { id = 1
+                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , spawnPoint = EastStation
+                              , departureTime = { day = 0, hour = 0, minute = 0 }
+                              , program = [ Programmer.Types.SetReverser Programmer.Types.Forward ]
+                              }
+                            ]
+
+                        spawned =
+                            checkSpawns 0.0 scheduled Set.empty Normal
+                    in
+                    case List.head spawned of
+                        Just train ->
+                            train.trainState |> Expect.equal Executing
+
+                        Nothing ->
+                            Expect.fail "Expected train to be spawned"
+            , test "spawned train without program starts in WaitingForOrders state" <|
+                \_ ->
+                    let
+                        scheduled =
+                            [ { id = 1
+                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , spawnPoint = EastStation
+                              , departureTime = { day = 0, hour = 0, minute = 0 }
+                              , program = []
+                              }
+                            ]
+
+                        spawned =
+                            checkSpawns 0.0 scheduled Set.empty Normal
+                    in
+                    case List.head spawned of
+                        Just train ->
+                            train.trainState |> Expect.equal WaitingForOrders
+
+                        Nothing ->
+                            Expect.fail "Expected train to be spawned"
+            ]
+        , describe "stock return on despawn"
+            [ test "returnStockToInventory adds items back to correct spawn point" <|
+                \_ ->
+                    let
+                        inventories =
+                            [ { spawnPointId = EastStation
+                              , availableStock = [ { id = 10, stockType = PassengerCar } ]
+                              }
+                            , { spawnPointId = WestStation
+                              , availableStock = []
+                              }
+                            ]
+
+                        returned =
+                            returnStockToInventory EastStation
+                                [ { id = 1, stockType = Locomotive } ]
+                                inventories
+                    in
+                    case List.head returned of
+                        Just eastInv ->
+                            List.length eastInv.availableStock |> Expect.equal 2
+
+                        Nothing ->
+                            Expect.fail "Expected inventory"
+            , test "returnStockToInventory does not affect other spawn points" <|
+                \_ ->
+                    let
+                        inventories =
+                            [ { spawnPointId = EastStation
+                              , availableStock = []
+                              }
+                            , { spawnPointId = WestStation
+                              , availableStock = [ { id = 5, stockType = Boxcar } ]
+                              }
+                            ]
+
+                        returned =
+                            returnStockToInventory EastStation
+                                [ { id = 1, stockType = Locomotive } ]
+                                inventories
+                    in
+                    case returned of
+                        [ _, westInv ] ->
+                            List.length westInv.availableStock |> Expect.equal 1
+
+                        _ ->
+                            Expect.fail "Expected 2 inventories"
+            , test "despawned train consist determines returned stock" <|
+                \_ ->
+                    let
+                        -- Simulate a 3-car train returning its consist
+                        consist =
+                            [ { id = 1, stockType = Locomotive }
+                            , { id = 2, stockType = PassengerCar }
+                            , { id = 3, stockType = Flatbed }
+                            ]
+
+                        inventories =
+                            [ { spawnPointId = WestStation, availableStock = [] }
+                            , { spawnPointId = EastStation, availableStock = [] }
+                            ]
+
+                        returned =
+                            returnStockToInventory WestStation consist inventories
+                    in
+                    case List.head returned of
+                        Just westInv ->
+                            Expect.all
+                                [ \inv -> List.length inv.availableStock |> Expect.equal 3
+                                , \inv ->
+                                    List.map .stockType inv.availableStock
+                                        |> Expect.equal [ Locomotive, PassengerCar, Flatbed ]
+                                ]
+                                westInv
+
+                        Nothing ->
+                            Expect.fail "Expected inventory"
             ]
         ]

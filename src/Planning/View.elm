@@ -96,7 +96,8 @@ viewPanelHeader onClose onReset =
                 ]
                 [ text "Start Fresh" ]
             , button
-                [ style "background" "transparent"
+                [ attribute "data-testid" "close-planning-panel"
+                , style "background" "transparent"
                 , style "border" "none"
                 , style "color" "#e0e0e0"
                 , style "font-size" "20px"
@@ -377,7 +378,8 @@ viewStockTypeItem selectedItem onSelect ( stockType, count, representative ) =
                     False
     in
     div
-        [ style "position" "relative"
+        [ attribute "data-testid" ("stock-" ++ stockTypeTestId stockType)
+        , style "position" "relative"
         , style "cursor" "pointer"
         , style "padding" "8px"
         , style "background"
@@ -416,6 +418,22 @@ viewStockTypeItem selectedItem onSelect ( stockType, count, representative ) =
             ]
             [ text (String.fromInt count) ]
         ]
+
+
+stockTypeTestId : StockType -> String
+stockTypeTestId stockType =
+    case stockType of
+        Locomotive ->
+            "locomotive"
+
+        PassengerCar ->
+            "passenger"
+
+        Flatbed ->
+            "flatbed"
+
+        Boxcar ->
+            "boxcar"
 
 
 viewStockSideProfile : StockType -> Html msg
@@ -515,7 +533,8 @@ viewConsistBuilder builder onAddFront onAddBack onInsert onRemove onClear =
                 [ text "Clear" ]
             ]
         , div
-            [ style "display" "flex"
+            [ attribute "data-testid" "consist-area"
+            , style "display" "flex"
             , style "gap" "4px"
             , style "padding" "8px"
             , style "background" "#151520"
@@ -614,7 +633,8 @@ viewAddButton enabled onAdd =
 viewConsistItem : (Int -> msg) -> Int -> StockItem -> Html msg
 viewConsistItem onRemove index item =
     div
-        [ style "position" "relative"
+        [ attribute "data-testid" ("consist-item-" ++ stockTypeTestId item.stockType)
+        , style "position" "relative"
         , style "flex-shrink" "0"
         ]
         [ div
