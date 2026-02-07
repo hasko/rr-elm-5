@@ -1,20 +1,29 @@
 
-- The buffer stop is wrongly displayed. It's kind of along the track instead of perpendicular to it. Needs fixing.
+## Completed
+- ~~The buffer stop is wrongly displayed.~~ FIXED (orientation now perpendicular)
+- ~~Mouse wheel zoom on the map canvas.~~ DONE
+- ~~Horizontal panning of the consist in the consist builder window.~~ DONE
+- ~~Time speed controls (1x, 2x, etc.) in the header bar.~~ DONE
+- ~~The clock is not updating when the sim is running.~~ VERIFIED WORKING
+- ~~Turnout clicking / routing verification.~~ VERIFIED WORKING
+- ~~Buffer stop braking verification.~~ VERIFIED WORKING
+- ~~Game designer agent: wrong solutions + scenario 2 walkthrough.~~ DONE (docs/morning-run-experience.md)
+- ~~East/West station names swapped.~~ FIXED
+
+## Next Sprint: Bug Fixes
 - When trains "move to" a spawn point, they are only considered to have arrived after the last car disappeared in the tunnel. Needs verification after program execution is implemented.
-- Tracks should be reserved when a train wants to enter them. Signals define blocks.
-- The clock is not updating when the sim is running. Verify and fix.
-- Unavailable stock should not disappear (to avoid time complex time logic) but appear with 0 available. Adding them to a train should give them a dashed outline, indicating "if available at the time"
-- Turnout clicking works but need to verify that trains are routed the right way. Verify and fix if needed.
-- Do trains stop in time to avoid the buffer stop in the siding? This should happen automatically. Verify and fix if needed.
 - Do trains in curves look right, i.e. do they respect their axle distance with overhangs? Verify and fix if needed?
+- Unavailable stock should not disappear (to avoid time complex time logic) but appear with 0 available. Adding them to a train should give them a dashed outline, indicating "if available at the time"
+- MoveTo should allow specifying which car in the consist to spot at the target (e.g. "spot passenger car at platform"), not just the train head.
+- Add data-testid attributes documented in tests/ui-controls.spec.js (svg-canvas, game-clock, play-pause-button, speed-control-*, mode-indicator, buffer-stop)
+
+## After Bug Fixes: Coupling/Uncoupling
+- Coupling/uncoupling mechanics: Uncoupling is available while a train is stopped and executing a program (spotted). The player specifies which coupling to break (between two adjacent cars or loco and adjacent car). Manual coupling is only available when the train is under manual control (not executing a program).
+- Two fundamental train states: (1) Executing a program, (2) Manually controlled. Under manual control: uncoupling, changing reverser, moving to a reachable spot, and "execute program" are available. While executing a program: only "emergency stop" is available as manual override. Both emergency stop and "driver needing guidance" (program error) transition the train to manual control.
+
+## Future
+- Tracks should be reserved when a train wants to enter them. Signals define blocks.
 - Put rolling stock types into a JSON file, e.g. locos, cars, maybe composite track types like turnouts, crossings with no, single, and double slip, turntables
 - More scenarios. (POSTPONED - do not implement automatically)
 - Make scenarios selectable (e.g. dropdown or menu). Scenario 2: same as scenario 1 but adds a passenger train (1 loco + 2 passenger cars) going west-to-east at 7:00, and returning east-to-west at 9:00 (loco flipped, cars not flipped).
-- Game designer agent: Extend docs/morning-run-experience.md with (a) wrong solution walkthroughs — what happens when the player forgets to set the switch, gets consist order wrong, programs moves in wrong sequence, etc., and (b) scenario 2 player journey (passenger train added). Pure gameplay perspective, no code. Cover how failures manifest visually and what the player learns from them. Key scenario 2 constraint: the passenger train is immutable (not player-controlled) — it's a fixed timetable constraint. The player must ensure the switch is set back to Normal before the passenger train passes on the mainline, then switch again to leave the siding. This creates a time-pressure puzzle.
 - Multiple trains.
-- Mouse wheel zoom on the map canvas.
-- Horizontal panning of the consist in the consist builder window (mouse drag left/right, no scrollbar).
-- Time speed controls (1x, 2x, etc.) in the header bar.
-- MoveTo should allow specifying which car in the consist to spot at the target (e.g. "spot passenger car at platform"), not just the train head.
-- Coupling/uncoupling mechanics: Uncoupling is available while a train is stopped and executing a program (spotted). The player specifies which coupling to break (between two adjacent cars or loco and adjacent car). Manual coupling is only available when the train is under manual control (not executing a program).
-- Two fundamental train states: (1) Executing a program, (2) Manually controlled. Under manual control: uncoupling, changing reverser, moving to a reachable spot, and "execute program" are available. While executing a program: only "emergency stop" is available as manual override. Both emergency stop and "driver needing guidance" (program error) transition the train to manual control.
