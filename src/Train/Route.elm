@@ -4,6 +4,7 @@ module Train.Route exposing
     , positionOnRoute
     , rebuildRoute
     , spotPosition
+    , turnoutStartDistance
     , westToEastRoute
     )
 
@@ -357,6 +358,32 @@ normalizeSweep rawSweep expectedSweep =
 
     else
         normalized
+
+
+
+-- TURNOUT DISTANCE
+
+
+{-| Find the cumulative distance where the turnout element (ElementId 2)
+begins in a route. Returns Nothing if the turnout is not on the route.
+-}
+turnoutStartDistance : Route -> Maybe Float
+turnoutStartDistance route =
+    findTurnoutStart route.segments
+
+
+findTurnoutStart : List RouteSegment -> Maybe Float
+findTurnoutStart segments =
+    case segments of
+        [] ->
+            Nothing
+
+        segment :: rest ->
+            if segment.elementId == ElementId 2 then
+                Just segment.startDistance
+
+            else
+                findTurnoutStart rest
 
 
 

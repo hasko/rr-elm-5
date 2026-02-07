@@ -314,14 +314,11 @@ update msg model =
                     newTurnoutState =
                         List.foldl applySwitchEffect model.turnoutState allEffects
 
-                    -- Rebuild routes if turnout state changed
+                    -- Rebuild routes if turnout state changed, but only for trains
+                    -- that haven't passed the turnout yet (to prevent position jumps)
                     routeRebuiltTrains =
                         if newTurnoutState /= model.turnoutState then
-                            List.map
-                                (\t ->
-                                    { t | route = Route.rebuildRoute t.spawnPoint newTurnoutState }
-                                )
-                                executedTrains
+                            List.map (rebuildIfBeforeTurnout newTurnoutState) executedTrains
 
                         else
                             executedTrains
@@ -436,11 +433,7 @@ update msg model =
                                     Normal
 
                         rebuiltTrains =
-                            List.map
-                                (\t ->
-                                    { t | route = Route.rebuildRoute t.spawnPoint newState }
-                                )
-                                model.activeTrains
+                            List.map (rebuildIfBeforeTurnout newState) model.activeTrains
                     in
                     ( { model | turnoutState = newState, activeTrains = rebuiltTrains }, Cmd.none )
 
@@ -700,6 +693,29 @@ applySwitchEffect effect currentState =
 
                 Programmer.Diverging ->
                     Reverse
+
+
+
+{-| Rebuild a train's route only if the train hasn't passed the turnout yet.
+
+Trains past the turnout keep their existing route to prevent position jumps
+when the switch changes — the same position value would map to a different
+physical location on the new route.
+
+-}
+rebuildIfBeforeTurnout : SwitchState -> ActiveTrain -> ActiveTrain
+rebuildIfBeforeTurnout newSwitchState train =
+    case Route.turnoutStartDistance train.route of
+        Just turnoutDist ->
+            if train.position < turnoutDist then
+                { train | route = Route.rebuildRoute train.spawnPoint newSwitchState }
+
+            else
+                train
+
+        Nothing ->
+            -- Turnout not on this route, rebuild is safe
+            { train | route = Route.rebuildRoute train.spawnPoint newSwitchState }
 
 
 

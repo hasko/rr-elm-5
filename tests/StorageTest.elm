@@ -78,8 +78,8 @@ roundTripTests =
                             | activeTrains =
                                 [ { id = 1
                                   , consist =
-                                        [ { id = 1, stockType = Locomotive }
-                                        , { id = 2, stockType = Flatbed }
+                                        [ { id = 1, stockType = Locomotive, reversed = False }
+                                        , { id = 2, stockType = Flatbed, reversed = False }
                                         ]
                                   , position = 123.45
                                   , speed = 11.11
@@ -115,7 +115,7 @@ roundTripTests =
                                 [ { id = 1
                                   , spawnPoint = WestStation
                                   , departureTime = { day = 2, hour = 14, minute = 30 }
-                                  , consist = [ { id = 4, stockType = Boxcar } ]
+                                  , consist = [ { id = 4, stockType = Boxcar, reversed = False } ]
                                   , program =
                                         [ SetReverser Forward
                                         , MoveTo PlatformSpot
@@ -151,15 +151,15 @@ roundTripTests =
                             | inventories =
                                 [ { spawnPointId = EastStation
                                   , availableStock =
-                                        [ { id = 1, stockType = Locomotive }
-                                        , { id = 2, stockType = PassengerCar }
-                                        , { id = 3, stockType = Flatbed }
+                                        [ { id = 1, stockType = Locomotive, reversed = False }
+                                        , { id = 2, stockType = PassengerCar, reversed = False }
+                                        , { id = 3, stockType = Flatbed, reversed = False }
                                         ]
                                   }
                                 , { spawnPointId = WestStation
                                   , availableStock =
-                                        [ { id = 4, stockType = Locomotive }
-                                        , { id = 5, stockType = Boxcar }
+                                        [ { id = 4, stockType = Locomotive, reversed = False }
+                                        , { id = 5, stockType = Boxcar, reversed = False }
                                         ]
                                   }
                                 ]
@@ -194,10 +194,10 @@ roundTripTests =
                             | inventories =
                                 [ { spawnPointId = EastStation
                                   , availableStock =
-                                        [ { id = 1, stockType = Locomotive }
-                                        , { id = 2, stockType = PassengerCar }
-                                        , { id = 3, stockType = Flatbed }
-                                        , { id = 4, stockType = Boxcar }
+                                        [ { id = 1, stockType = Locomotive, reversed = False }
+                                        , { id = 2, stockType = PassengerCar, reversed = False }
+                                        , { id = 3, stockType = Flatbed, reversed = False }
+                                        , { id = 4, stockType = Boxcar, reversed = False }
                                         ]
                                   }
                                 ]
@@ -236,7 +236,7 @@ roundTripTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                   , program = allOrders
                                   }
                                 ]
@@ -311,13 +311,13 @@ roundTripTests =
                         { minimalState
                             | activeTrains =
                                 [ { id = 1
-                                  , consist = [ { id = 1, stockType = Locomotive } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                   , position = 50
                                   , speed = 10
                                   , spawnPoint = EastStation
                                   }
                                 , { id = 2
-                                  , consist = [ { id = 2, stockType = Locomotive } ]
+                                  , consist = [ { id = 2, stockType = Locomotive, reversed = False } ]
                                   , position = 100
                                   , speed = 10
                                   , spawnPoint = WestStation
@@ -371,7 +371,7 @@ edgeCaseTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                   , program = []
                                   }
                                 ]
@@ -407,7 +407,7 @@ edgeCaseTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                   , program = [ Couple ]
                                   }
                                 ]
@@ -431,7 +431,7 @@ edgeCaseTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                   , program = [ Uncouple 2 ]
                                   }
                                 ]
@@ -456,7 +456,7 @@ edgeCaseTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                   , program = [ SetReverser Forward, MoveTo PlatformSpot ]
                                   }
                                 ]

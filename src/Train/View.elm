@@ -116,7 +116,7 @@ viewTrainCar onTrainClick trainId position orientation stockType =
         -- Convert from custom system (0° = North, CW) to SVG (0° = East, CCW)
         -- Formula: svgAngle = 90° - customAngle (in radians: pi/2 - orientation)
         rotationDeg =
-            (pi / 2 - orientation) * 180 / pi
+            (orientation - pi / 2) * 180 / pi
 
         -- SVG transform: translate to position, then rotate
         -- World coordinates match SVG: +Y = down (south)

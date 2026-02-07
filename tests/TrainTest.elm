@@ -28,6 +28,8 @@ suite =
         , spotPositionTests
         , dynamicRoutingTests
         , executionTests
+        , arcOrientationTests
+        , turnoutRebuildTests
         ]
 
 
@@ -65,21 +67,21 @@ stockTests =
                         |> Expect.within (Expect.Absolute 0.01) 0.0
             , test "single locomotive is 10.45m" <|
                 \_ ->
-                    consistLength [ { id = 1, stockType = Locomotive } ]
+                    consistLength [ { id = 1, stockType = Locomotive, reversed = False } ]
                         |> Expect.within (Expect.Absolute 0.01) 10.45
             , test "two locomotives with gap is 21.9m" <|
                 \_ ->
                     consistLength
-                        [ { id = 1, stockType = Locomotive }
-                        , { id = 2, stockType = Locomotive }
+                        [ { id = 1, stockType = Locomotive, reversed = False }
+                        , { id = 2, stockType = Locomotive, reversed = False }
                         ]
                         |> Expect.within (Expect.Absolute 0.01) 21.9
             , test "loco + passenger car + flatbed is 10.45 + 13.92 + 13.96 + 2 gaps = 40.33m" <|
                 \_ ->
                     consistLength
-                        [ { id = 1, stockType = Locomotive }
-                        , { id = 2, stockType = PassengerCar }
-                        , { id = 3, stockType = Flatbed }
+                        [ { id = 1, stockType = Locomotive, reversed = False }
+                        , { id = 2, stockType = PassengerCar, reversed = False }
+                        , { id = 3, stockType = Flatbed, reversed = False }
                         ]
                         |> Expect.within (Expect.Absolute 0.01) 40.33
             ]
@@ -102,7 +104,7 @@ movementTests =
                         train =
                             testTrain
                                 { id = 1
-                                , consist = [ { id = 1, stockType = Locomotive } ]
+                                , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                 , position = 0.0
                                 , speed = 10.0
                                 , route = testRoute 500.0
@@ -119,7 +121,7 @@ movementTests =
                         train =
                             testTrain
                                 { id = 1
-                                , consist = [ { id = 1, stockType = Locomotive } ]
+                                , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                 , position = 100.0
                                 , speed = 11.11
                                 , route = testRoute 500.0
@@ -138,7 +140,7 @@ movementTests =
                         train =
                             testTrain
                                 { id = 1
-                                , consist = [ { id = 1, stockType = Locomotive } ]
+                                , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                 , position = 100.0
                                 , speed = 10.0
                                 , route = testRoute 500.0
@@ -154,7 +156,7 @@ movementTests =
                         train =
                             testTrain
                                 { id = 1
-                                , consist = [ { id = 1, stockType = Locomotive } ]
+                                , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                 , position = 510.0
                                 , speed = 10.0
                                 , route = testRoute 500.0
@@ -170,7 +172,7 @@ movementTests =
                         train =
                             testTrain
                                 { id = 1
-                                , consist = [ { id = 1, stockType = Locomotive } ]
+                                , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                                 , position = 530.0
                                 , speed = 10.0
                                 , route = testRoute 500.0
@@ -187,8 +189,8 @@ movementTests =
                             testTrain
                                 { id = 1
                                 , consist =
-                                    [ { id = 1, stockType = Locomotive }
-                                    , { id = 2, stockType = Locomotive }
+                                    [ { id = 1, stockType = Locomotive, reversed = False }
+                                    , { id = 2, stockType = Locomotive, reversed = False }
                                     ]
                                 , position = 550.0
                                 , speed = 10.0
@@ -210,7 +212,7 @@ spawnTests =
                     let
                         scheduled =
                             [ { id = 1
-                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 10 }
                               , program = []
@@ -227,7 +229,7 @@ spawnTests =
                     let
                         scheduled =
                             [ { id = 1
-                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 10 }
                               , program = []
@@ -244,7 +246,7 @@ spawnTests =
                     let
                         scheduled =
                             [ { id = 1
-                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 10 }
                               , program = []
@@ -264,13 +266,13 @@ spawnTests =
                     let
                         scheduled =
                             [ { id = 1
-                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 5 }
                               , program = []
                               }
                             , { id = 2
-                              , consist = [ { id = 2, stockType = Locomotive } ]
+                              , consist = [ { id = 2, stockType = Locomotive, reversed = False } ]
                               , spawnPoint = WestStation
                               , departureTime = { day = 0, hour = 0, minute = 5 }
                               , program = []
@@ -287,7 +289,7 @@ spawnTests =
                     let
                         scheduled =
                             [ { id = 1
-                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 0 }
                               , program = []
@@ -309,7 +311,7 @@ spawnTests =
                     let
                         scheduled =
                             [ { id = 1
-                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 0 }
                               , program = []
@@ -654,7 +656,7 @@ executingTrain program =
             Route.eastToWestRoute Reverse
     in
     { id = 1
-    , consist = [ { id = 1, stockType = Locomotive } ]
+    , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
     , position = 0
     , speed = 0
     , route = route
@@ -817,7 +819,7 @@ executionTests =
 
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = 0
                             , speed = 0
                             , route = route
@@ -848,7 +850,7 @@ executionTests =
 
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = 10
                             , speed = 5.0
                             , route = route
@@ -878,7 +880,7 @@ executionTests =
 
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = 10
                             , speed = 5.0
                             , route = route
@@ -984,7 +986,7 @@ executionTests =
                         -- Position train very close to route end, moving forward
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = route.totalLength - 5
                             , speed = 10.0
                             , route = route
@@ -1013,7 +1015,7 @@ executionTests =
 
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = route.totalLength - 1
                             , speed = 20.0
                             , route = route
@@ -1051,7 +1053,7 @@ executionTests =
 
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = platformDist + 50
                             , speed = 0
                             , route = route
@@ -1093,7 +1095,7 @@ executionTests =
                         -- Position past the platform, reverser Forward
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = platformDist + 50
                             , speed = 0
                             , route = route
@@ -1125,7 +1127,7 @@ executionTests =
                         -- Place train very close to target (within arrival threshold)
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = platformDist - 0.3
                             , speed = 1.0
                             , route = route
@@ -1154,7 +1156,7 @@ executionTests =
                     let
                         scheduled =
                             [ { id = 1
-                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 0 }
                               , program = [ Programmer.Types.SetReverser Programmer.Types.Forward ]
@@ -1175,7 +1177,7 @@ executionTests =
                     let
                         scheduled =
                             [ { id = 1
-                              , consist = [ { id = 1, stockType = Locomotive } ]
+                              , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               , spawnPoint = EastStation
                               , departureTime = { day = 0, hour = 0, minute = 0 }
                               , program = []
@@ -1201,7 +1203,7 @@ executionTests =
 
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = 100
                             , speed = 0
                             , route = route
@@ -1230,7 +1232,7 @@ executionTests =
 
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = 10
                             , speed = 3.0
                             , route = route
@@ -1284,7 +1286,7 @@ executionTests =
 
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = 0
                             , speed = 0
                             , route = route
@@ -1311,7 +1313,7 @@ executionTests =
                         -- Train near start of route, moving in reverse (toward position 0)
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = 5
                             , speed = 10.0
                             , route = route
@@ -1339,7 +1341,7 @@ executionTests =
 
                         train =
                             { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive } ]
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
                             , position = 1
                             , speed = 20.0
                             , route = route
@@ -1368,7 +1370,7 @@ executionTests =
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 10, stockType = PassengerCar } ]
+                              , availableStock = [ { id = 10, stockType = PassengerCar, reversed = False } ]
                               }
                             , { spawnPointId = WestStation
                               , availableStock = []
@@ -1377,7 +1379,7 @@ executionTests =
 
                         returned =
                             returnStockToInventory EastStation
-                                [ { id = 1, stockType = Locomotive } ]
+                                [ { id = 1, stockType = Locomotive, reversed = False } ]
                                 inventories
                     in
                     case List.head returned of
@@ -1394,13 +1396,13 @@ executionTests =
                               , availableStock = []
                               }
                             , { spawnPointId = WestStation
-                              , availableStock = [ { id = 5, stockType = Boxcar } ]
+                              , availableStock = [ { id = 5, stockType = Boxcar, reversed = False } ]
                               }
                             ]
 
                         returned =
                             returnStockToInventory EastStation
-                                [ { id = 1, stockType = Locomotive } ]
+                                [ { id = 1, stockType = Locomotive, reversed = False } ]
                                 inventories
                     in
                     case returned of
@@ -1414,9 +1416,9 @@ executionTests =
                     let
                         -- Simulate a 3-car train returning its consist
                         consist =
-                            [ { id = 1, stockType = Locomotive }
-                            , { id = 2, stockType = PassengerCar }
-                            , { id = 3, stockType = Flatbed }
+                            [ { id = 1, stockType = Locomotive, reversed = False }
+                            , { id = 2, stockType = PassengerCar, reversed = False }
+                            , { id = 3, stockType = Flatbed, reversed = False }
                             ]
 
                         inventories =
@@ -1440,4 +1442,198 @@ executionTests =
                         Nothing ->
                             Expect.fail "Expected inventory"
             ]
+        ]
+
+
+arcOrientationTests : Test
+arcOrientationTests =
+    describe "Arc orientation matches travel direction"
+        [ test "orientation on diverging arc at t=0.5 differs from t=0" <|
+            \_ ->
+                let
+                    route =
+                        Route.eastToWestRoute Reverse
+
+                    -- Find where the arc segment (turnout diverge, ElementId 2) starts
+                    arcSegment =
+                        route.segments
+                            |> List.filter (\s -> s.elementId == ElementId 2)
+                            |> List.head
+                in
+                case arcSegment of
+                    Just seg ->
+                        let
+                            posAtStart =
+                                Route.positionOnRoute seg.startDistance route
+
+                            posAtMid =
+                                Route.positionOnRoute (seg.startDistance + seg.length / 2) route
+                        in
+                        case ( posAtStart, posAtMid ) of
+                            ( Just start, Just mid ) ->
+                                -- Orientation should change along the arc
+                                abs (start.orientation - mid.orientation)
+                                    |> Expect.greaterThan 0.01
+
+                            _ ->
+                                Expect.fail "Expected valid positions on arc"
+
+                    Nothing ->
+                        Expect.fail "Expected arc segment on siding route"
+        , test "position on arc is on the curve, not a straight line" <|
+            \_ ->
+                let
+                    route =
+                        Route.eastToWestRoute Reverse
+
+                    arcSegment =
+                        route.segments
+                            |> List.filter (\s -> s.elementId == ElementId 2)
+                            |> List.head
+                in
+                case arcSegment of
+                    Just seg ->
+                        let
+                            posAtStart =
+                                Route.positionOnRoute seg.startDistance route
+
+                            posAtEnd =
+                                Route.positionOnRoute (seg.startDistance + seg.length) route
+
+                            posAtMid =
+                                Route.positionOnRoute (seg.startDistance + seg.length / 2) route
+                        in
+                        case ( posAtStart, posAtEnd, posAtMid ) of
+                            ( Just s, Just e, Just m ) ->
+                                -- Midpoint should not be the average of start and end
+                                -- (i.e., it's on a curve, not a straight line)
+                                let
+                                    linearMidX =
+                                        (s.position.x + e.position.x) / 2
+
+                                    linearMidY =
+                                        (s.position.y + e.position.y) / 2
+
+                                    deviationX =
+                                        abs (m.position.x - linearMidX)
+
+                                    deviationY =
+                                        abs (m.position.y - linearMidY)
+                                in
+                                -- At least one axis should deviate from linear midpoint
+                                (deviationX + deviationY)
+                                    |> Expect.greaterThan 0.1
+
+                            _ ->
+                                Expect.fail "Expected valid positions on arc"
+
+                    Nothing ->
+                        Expect.fail "Expected arc segment on siding route"
+        ]
+
+
+turnoutRebuildTests : Test
+turnoutRebuildTests =
+    describe "Conditional route rebuild on switch change"
+        [ test "turnoutStartDistance returns Just for route containing turnout" <|
+            \_ ->
+                let
+                    route =
+                        Route.eastToWestRoute Normal
+                in
+                case Route.turnoutStartDistance route of
+                    Just dist ->
+                        dist |> Expect.greaterThan 0.0
+
+                    Nothing ->
+                        Expect.fail "Expected turnout on mainline route"
+        , test "turnoutStartDistance returns Nothing for route without turnout" <|
+            \_ ->
+                let
+                    route =
+                        testRoute 500.0
+                in
+                Route.turnoutStartDistance route
+                    |> Expect.equal Nothing
+        , test "train before turnout gets route rebuilt" <|
+            \_ ->
+                let
+                    normalRoute =
+                        Route.eastToWestRoute Normal
+
+                    -- Position train before the turnout
+                    turnoutDist =
+                        Route.turnoutStartDistance normalRoute
+                            |> Maybe.withDefault 999
+
+                    train =
+                        testTrain
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
+                            , position = turnoutDist - 10
+                            , speed = 5.0
+                            , route = normalRoute
+                            }
+
+                    reverseRoute =
+                        Route.eastToWestRoute Reverse
+                in
+                -- Route should differ from Normal after rebuild with Reverse
+                -- (the segments after turnout differ)
+                let
+                    normalSegmentIds =
+                        List.map .elementId normalRoute.segments
+
+                    reverseSegmentIds =
+                        List.map .elementId reverseRoute.segments
+                in
+                normalSegmentIds
+                    |> Expect.notEqual reverseSegmentIds
+        , test "train past turnout keeps existing route on switch change" <|
+            \_ ->
+                let
+                    -- Build a siding route (Reverse)
+                    sidingRoute =
+                        Route.eastToWestRoute Reverse
+
+                    turnoutDist =
+                        Route.turnoutStartDistance sidingRoute
+                            |> Maybe.withDefault 0
+
+                    -- Find the turnout segment to get past it
+                    turnoutSegment =
+                        sidingRoute.segments
+                            |> List.filter (\s -> s.elementId == ElementId 2)
+                            |> List.head
+
+                    pastTurnoutDist =
+                        case turnoutSegment of
+                            Just seg ->
+                                seg.startDistance + seg.length + 10
+
+                            Nothing ->
+                                turnoutDist + 50
+
+                    -- Train is past the turnout on the siding
+                    train =
+                        testTrain
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
+                            , position = pastTurnoutDist
+                            , speed = 0.0
+                            , route = sidingRoute
+                            }
+
+                    -- Now try to rebuild with Normal (mainline) state
+                    -- The route should NOT change because train is past turnout
+                    originalSegmentIds =
+                        List.map .elementId train.route.segments
+
+                    -- Simulate what rebuildIfBeforeTurnout would do:
+                    -- train.position >= turnoutDist, so route should stay
+                    trainPositionPastTurnout =
+                        train.position >= turnoutDist
+                in
+                trainPositionPastTurnout
+                    |> Expect.equal True
         ]

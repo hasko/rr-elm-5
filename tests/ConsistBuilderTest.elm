@@ -50,8 +50,8 @@ suite =
                         inventories =
                             [ { spawnPointId = EastStation
                               , availableStock =
-                                    [ { id = 1, stockType = Locomotive }
-                                    , { id = 2, stockType = PassengerCar }
+                                    [ { id = 1, stockType = Locomotive, reversed = False }
+                                    , { id = 2, stockType = PassengerCar, reversed = False }
                                     ]
                               }
                             ]
@@ -60,12 +60,12 @@ suite =
                             takeStockFromInventory EastStation Locomotive inventories
                     in
                     Expect.all
-                        [ \_ -> taken |> Expect.equal (Just { id = 1, stockType = Locomotive })
+                        [ \_ -> taken |> Expect.equal (Just { id = 1, stockType = Locomotive, reversed = False })
                         , \_ ->
                             newInventories
                                 |> List.head
                                 |> Maybe.map .availableStock
-                                |> Expect.equal (Just [ { id = 2, stockType = PassengerCar } ])
+                                |> Expect.equal (Just [ { id = 2, stockType = PassengerCar, reversed = False } ])
                         ]
                         ()
             , test "takes first matching item when multiple of same type exist" <|
@@ -74,8 +74,8 @@ suite =
                         inventories =
                             [ { spawnPointId = WestStation
                               , availableStock =
-                                    [ { id = 5, stockType = Boxcar }
-                                    , { id = 6, stockType = Boxcar }
+                                    [ { id = 5, stockType = Boxcar, reversed = False }
+                                    , { id = 6, stockType = Boxcar, reversed = False }
                                     ]
                               }
                             ]
@@ -84,13 +84,13 @@ suite =
                             takeStockFromInventory WestStation Boxcar inventories
                     in
                     taken
-                        |> Expect.equal (Just { id = 5, stockType = Boxcar })
+                        |> Expect.equal (Just { id = 5, stockType = Boxcar, reversed = False })
             , test "returns Nothing when stock type not available" <|
                 \_ ->
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 1, stockType = Locomotive } ]
+                              , availableStock = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               }
                             ]
 
@@ -104,7 +104,7 @@ suite =
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 1, stockType = Locomotive } ]
+                              , availableStock = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               }
                             ]
 
@@ -118,10 +118,10 @@ suite =
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 1, stockType = Locomotive } ]
+                              , availableStock = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               }
                             , { spawnPointId = WestStation
-                              , availableStock = [ { id = 2, stockType = Boxcar } ]
+                              , availableStock = [ { id = 2, stockType = Boxcar, reversed = False } ]
                               }
                             ]
 
@@ -132,13 +132,13 @@ suite =
                         |> List.filter (\inv -> inv.spawnPointId == WestStation)
                         |> List.head
                         |> Maybe.map .availableStock
-                        |> Expect.equal (Just [ { id = 2, stockType = Boxcar } ])
+                        |> Expect.equal (Just [ { id = 2, stockType = Boxcar, reversed = False } ])
             , test "handles taking last item from inventory" <|
                 \_ ->
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 1, stockType = Locomotive } ]
+                              , availableStock = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               }
                             ]
 
@@ -146,7 +146,7 @@ suite =
                             takeStockFromInventory EastStation Locomotive inventories
                     in
                     Expect.all
-                        [ \_ -> taken |> Expect.equal (Just { id = 1, stockType = Locomotive })
+                        [ \_ -> taken |> Expect.equal (Just { id = 1, stockType = Locomotive, reversed = False })
                         , \_ ->
                             newInventories
                                 |> List.head
@@ -158,20 +158,20 @@ suite =
         , describe "returnStockToInventory"
             [ test "returns empty list when inventories list is empty" <|
                 \_ ->
-                    returnStockToInventory EastStation [ { id = 1, stockType = Locomotive } ] []
+                    returnStockToInventory EastStation [ { id = 1, stockType = Locomotive, reversed = False } ] []
                         |> Expect.equal []
             , test "adds stock items to correct spawn point inventory" <|
                 \_ ->
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 1, stockType = Locomotive } ]
+                              , availableStock = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               }
                             ]
 
                         itemsToReturn =
-                            [ { id = 2, stockType = PassengerCar }
-                            , { id = 3, stockType = Flatbed }
+                            [ { id = 2, stockType = PassengerCar, reversed = False }
+                            , { id = 3, stockType = Flatbed, reversed = False }
                             ]
 
                         newInventories =
@@ -187,12 +187,12 @@ suite =
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 1, stockType = Locomotive } ]
+                              , availableStock = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               }
                             ]
 
                         itemsToReturn =
-                            [ { id = 2, stockType = PassengerCar } ]
+                            [ { id = 2, stockType = PassengerCar, reversed = False } ]
 
                         newInventories =
                             returnStockToInventory EastStation itemsToReturn inventories
@@ -202,8 +202,8 @@ suite =
                         |> Maybe.map .availableStock
                         |> Expect.equal
                             (Just
-                                [ { id = 1, stockType = Locomotive }
-                                , { id = 2, stockType = PassengerCar }
+                                [ { id = 1, stockType = Locomotive, reversed = False }
+                                , { id = 2, stockType = PassengerCar, reversed = False }
                                 ]
                             )
             , test "does not modify other spawn point inventories" <|
@@ -211,15 +211,15 @@ suite =
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 1, stockType = Locomotive } ]
+                              , availableStock = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               }
                             , { spawnPointId = WestStation
-                              , availableStock = [ { id = 4, stockType = Boxcar } ]
+                              , availableStock = [ { id = 4, stockType = Boxcar, reversed = False } ]
                               }
                             ]
 
                         itemsToReturn =
-                            [ { id = 2, stockType = PassengerCar } ]
+                            [ { id = 2, stockType = PassengerCar, reversed = False } ]
 
                         newInventories =
                             returnStockToInventory EastStation itemsToReturn inventories
@@ -228,13 +228,13 @@ suite =
                         |> List.filter (\inv -> inv.spawnPointId == WestStation)
                         |> List.head
                         |> Maybe.map .availableStock
-                        |> Expect.equal (Just [ { id = 4, stockType = Boxcar } ])
+                        |> Expect.equal (Just [ { id = 4, stockType = Boxcar, reversed = False } ])
             , test "handles returning empty list" <|
                 \_ ->
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 1, stockType = Locomotive } ]
+                              , availableStock = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               }
                             ]
 
@@ -244,7 +244,7 @@ suite =
                     newInventories
                         |> List.head
                         |> Maybe.map .availableStock
-                        |> Expect.equal (Just [ { id = 1, stockType = Locomotive } ])
+                        |> Expect.equal (Just [ { id = 1, stockType = Locomotive, reversed = False } ])
             , test "handles returning to empty inventory" <|
                 \_ ->
                     let
@@ -255,7 +255,7 @@ suite =
                             ]
 
                         itemsToReturn =
-                            [ { id = 1, stockType = Locomotive } ]
+                            [ { id = 1, stockType = Locomotive, reversed = False } ]
 
                         newInventories =
                             returnStockToInventory EastStation itemsToReturn inventories
@@ -263,7 +263,7 @@ suite =
                     newInventories
                         |> List.head
                         |> Maybe.map .availableStock
-                        |> Expect.equal (Just [ { id = 1, stockType = Locomotive } ])
+                        |> Expect.equal (Just [ { id = 1, stockType = Locomotive, reversed = False } ])
             ]
         , describe "Integration scenarios"
             [ test "take and return cycle preserves inventory" <|
@@ -272,8 +272,8 @@ suite =
                         initialInventories =
                             [ { spawnPointId = EastStation
                               , availableStock =
-                                    [ { id = 1, stockType = Locomotive }
-                                    , { id = 2, stockType = PassengerCar }
+                                    [ { id = 1, stockType = Locomotive, reversed = False }
+                                    , { id = 2, stockType = PassengerCar, reversed = False }
                                     ]
                               }
                             ]
@@ -300,9 +300,9 @@ suite =
                         inventories =
                             [ { spawnPointId = EastStation
                               , availableStock =
-                                    [ { id = 1, stockType = Locomotive }
-                                    , { id = 2, stockType = PassengerCar }
-                                    , { id = 3, stockType = Flatbed }
+                                    [ { id = 1, stockType = Locomotive, reversed = False }
+                                    , { id = 2, stockType = PassengerCar, reversed = False }
+                                    , { id = 3, stockType = Flatbed, reversed = False }
                                     ]
                               }
                             ]
@@ -323,7 +323,7 @@ suite =
                     let
                         inventories =
                             [ { spawnPointId = EastStation
-                              , availableStock = [ { id = 1, stockType = Locomotive } ]
+                              , availableStock = [ { id = 1, stockType = Locomotive, reversed = False } ]
                               }
                             ]
 
