@@ -128,8 +128,8 @@ viewSpawnPointSelector selected onSelect =
             ]
             [ text "STATION" ]
         , div [ style "display" "flex", style "gap" "8px" ]
-            [ viewSpawnPointButton EastStation "East Station" selected onSelect
-            , viewSpawnPointButton WestStation "West Station" selected onSelect
+            [ viewSpawnPointButton EastStation "West Station" selected onSelect
+            , viewSpawnPointButton WestStation "East Station" selected onSelect
             ]
         ]
 
@@ -651,10 +651,10 @@ destinationLabel : SpawnPointId -> String
 destinationLabel spawnPoint =
     case spawnPoint of
         EastStation ->
-            "towards West Station"
+            "towards East Station"
 
         WestStation ->
-            "towards East Station"
+            "towards West Station"
 
 
 {-| Render a destination label flanking the consist area.

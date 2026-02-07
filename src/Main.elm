@@ -443,7 +443,7 @@ update msg model =
                     ( { model | turnoutState = newState, activeTrains = rebuiltTrains }, Cmd.none )
 
                 TunnelPortalId ->
-                    -- Open planning panel with East Station selected
+                    -- Open planning panel with West Station selected (low-X portal)
                     let
                         planning =
                             model.planningState
@@ -456,7 +456,7 @@ update msg model =
                     )
 
                 WestTunnelPortalId ->
-                    -- Open planning panel with West Station selected
+                    -- Open planning panel with East Station selected (high-X portal)
                     let
                         planning =
                             model.planningState

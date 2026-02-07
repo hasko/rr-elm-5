@@ -257,14 +257,14 @@ interactiveElements turnoutState =
                     vec2 250 0
     in
     [ { id = TunnelPortalId
-      , element = TunnelPortal tunnelPos "East Station"
+      , element = TunnelPortal tunnelPos "West Station"
       , bounds = { x = tunnelPos.x - 20, y = tunnelPos.y - 20, width = 40, height = 40 }
-      , tooltip = "East Station (spawn point)"
+      , tooltip = "West Station (spawn point)"
       }
     , { id = WestTunnelPortalId
-      , element = TunnelPortal westPos "West Station"
+      , element = TunnelPortal westPos "East Station"
       , bounds = { x = westPos.x - 20, y = westPos.y - 20, width = 40, height = 40 }
-      , tooltip = "West Station (spawn point)"
+      , tooltip = "East Station (spawn point)"
       }
     , { id = TurnoutId
       , element = Turnout turnoutPos 0 turnoutState
