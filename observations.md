@@ -9,13 +9,13 @@
 - ~~Buffer stop braking verification.~~ VERIFIED WORKING
 - ~~Game designer agent: wrong solutions + scenario 2 walkthrough.~~ DONE (docs/morning-run-experience.md)
 - ~~East/West station names swapped.~~ FIXED
+- ~~Trains in curves: verified acceptable (max 0.14m deviation on R=170m).~~ NO FIX NEEDED
+- ~~Unavailable stock shown with 0 count and dashed outline.~~ DONE (provisional field + groupAndCountStock)
+- ~~MoveTo supports car-specific spotting (SpotTarget: TrainHead | SpotCar).~~ DONE
+- ~~data-testid attributes added to all UI elements.~~ DONE
 
 ## Next Sprint: Bug Fixes
 - When trains "move to" a spawn point, they are only considered to have arrived after the last car disappeared in the tunnel. Needs verification after program execution is implemented.
-- Do trains in curves look right, i.e. do they respect their axle distance with overhangs? Verify and fix if needed?
-- Unavailable stock should not disappear (to avoid time complex time logic) but appear with 0 available. Adding them to a train should give them a dashed outline, indicating "if available at the time"
-- MoveTo should allow specifying which car in the consist to spot at the target (e.g. "spot passenger car at platform"), not just the train head.
-- Add data-testid attributes documented in tests/ui-controls.spec.js (svg-canvas, game-clock, play-pause-button, speed-control-*, mode-indicator, buffer-stop)
 
 ## After Bug Fixes: Coupling/Uncoupling
 - Coupling/uncoupling mechanics: Uncoupling is available while a train is stopped and executing a program (spotted). The player specifies which coupling to break (between two adjacent cars or loco and adjacent car). Manual coupling is only available when the train is under manual control (not executing a program).
