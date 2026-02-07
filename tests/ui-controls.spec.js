@@ -1,5 +1,32 @@
 import { test, expect } from '@playwright/test';
 
+/**
+ * UI Controls - Zoom, Speed, Panning, Buffer Stop
+ *
+ * Required data-testid attributes (add to implementation if missing):
+ *
+ *   EXISTING (already in codebase):
+ *   - data-testid="close-planning-panel"    on planning panel close button
+ *   - data-testid="stock-locomotive"        on locomotive stock item
+ *   - data-testid="stock-passenger"         on passenger car stock item
+ *   - data-testid="stock-flatbed"           on flatbed stock item
+ *   - data-testid="consist-area"            on the consist builder scroll area
+ *   - data-testid="consist-item-locomotive" on locomotive items in consist
+ *   - data-testid="consist-item-passenger"  on passenger car items in consist
+ *   - data-testid="consist-item-flatbed"    on flatbed items in consist
+ *
+ *   NEW (need to be added to implementation):
+ *   - data-testid="svg-canvas"              on the main SVG element (viewCanvas)
+ *   - data-testid="game-clock"              on the clock container in the header
+ *   - data-testid="play-pause-button"       on the play/pause button
+ *   - data-testid="speed-control-1x"        on the 1x speed button
+ *   - data-testid="speed-control-2x"        on the 2x speed button
+ *   - data-testid="speed-control-4x"        on the 4x speed button
+ *   - data-testid="speed-control-8x"        on the 8x speed button
+ *   - data-testid="mode-indicator"          on the PLANNING/RUNNING/PAUSED badge
+ *   - data-testid="buffer-stop"             on the buffer stop SVG group
+ */
+
 test.describe('UI Controls - Zoom, Speed, Panning', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -8,124 +35,161 @@ test.describe('UI Controls - Zoom, Speed, Panning', () => {
     await expect(page.getByText('Train Planning')).toBeVisible();
   });
 
+  // ---------------------------------------------------------------------------
+  // Helper: get the canvas SVG element (tries data-testid first, falls back)
+  // ---------------------------------------------------------------------------
+  const getCanvas = (page) => {
+    const byTestId = page.getByTestId('svg-canvas');
+    // Fall back to first <svg> if data-testid not yet wired up
+    return byTestId.or(page.locator('svg').first());
+  };
+
+  // ---------------------------------------------------------------------------
+  // Helper: get the play/pause button
+  // ---------------------------------------------------------------------------
+  const getPlayPauseButton = (page) => {
+    return page.getByTestId('play-pause-button')
+      .or(page.getByRole('button', { name: 'Start', exact: true }))
+      .or(page.getByRole('button', { name: 'Pause' }));
+  };
+
+  const getStartButton = (page) => {
+    return page.getByTestId('play-pause-button')
+      .or(page.getByRole('button', { name: 'Start', exact: true }));
+  };
+
+  const getPauseButton = (page) => {
+    return page.getByTestId('play-pause-button')
+      .or(page.getByRole('button', { name: 'Pause' }));
+  };
+
+  // ---------------------------------------------------------------------------
+  // Helper: get speed buttons
+  // ---------------------------------------------------------------------------
+  const getSpeedButton = (page, multiplier) => {
+    return page.getByTestId(`speed-control-${multiplier}x`)
+      .or(page.getByRole('button', { name: `${multiplier}x` }));
+  };
+
+  // ---------------------------------------------------------------------------
+  // Mouse wheel zoom on canvas
+  // ---------------------------------------------------------------------------
   test.describe('Mouse wheel zoom on canvas', () => {
     test('wheel event changes the SVG viewBox', async ({ page }) => {
-      // Close planning panel to get to the canvas
       await page.getByTestId('close-planning-panel').click();
 
-      const canvas = page.locator('svg').first();
+      const canvas = getCanvas(page);
       await expect(canvas).toBeVisible();
 
-      // Get initial viewBox
       const initialViewBox = await canvas.getAttribute('viewBox');
 
-      // Perform wheel zoom in (negative deltaY = zoom in)
+      // Zoom in (negative deltaY = scroll up = zoom in)
       const box = await canvas.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.wheel(0, -100);
 
-      // Wait for viewBox to change
       await expect(async () => {
         const newViewBox = await canvas.getAttribute('viewBox');
         expect(newViewBox).not.toBe(initialViewBox);
       }).toPass({ timeout: 3000 });
     });
 
-    test('zoom in reduces viewBox dimensions (shows less area)', async ({ page }) => {
+    test('zoom in reduces viewBox width (shows less area)', async ({ page }) => {
       await page.getByTestId('close-planning-panel').click();
-      const canvas = page.locator('svg').first();
+      const canvas = getCanvas(page);
       await expect(canvas).toBeVisible();
 
       const initialViewBox = await canvas.getAttribute('viewBox');
-      const [, , initialWidth] = initialViewBox.split(' ').map(Number);
+      const initialWidth = Number(initialViewBox.split(' ')[2]);
 
-      // Zoom in
+      // Wait until canvas has a bounding box (fully laid out)
+      await expect(async () => {
+        const box = await canvas.boundingBox();
+        expect(box).not.toBeNull();
+      }).toPass({ timeout: 3000 });
       const box = await canvas.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.wheel(0, -100);
 
       await expect(async () => {
-        const newViewBox = await canvas.getAttribute('viewBox');
-        const [, , newWidth] = newViewBox.split(' ').map(Number);
+        const vb = await canvas.getAttribute('viewBox');
+        const newWidth = Number(vb.split(' ')[2]);
         expect(newWidth).toBeLessThan(initialWidth);
       }).toPass({ timeout: 3000 });
     });
 
-    test('zoom out increases viewBox dimensions (shows more area)', async ({ page }) => {
+    test('zoom out increases viewBox width (shows more area)', async ({ page }) => {
       await page.getByTestId('close-planning-panel').click();
-      const canvas = page.locator('svg').first();
+      const canvas = getCanvas(page);
       await expect(canvas).toBeVisible();
 
       const initialViewBox = await canvas.getAttribute('viewBox');
-      const [, , initialWidth] = initialViewBox.split(' ').map(Number);
+      const initialWidth = Number(initialViewBox.split(' ')[2]);
 
-      // Zoom out
+      // Wait until canvas has a bounding box (fully laid out)
+      await expect(async () => {
+        const box = await canvas.boundingBox();
+        expect(box).not.toBeNull();
+      }).toPass({ timeout: 3000 });
       const box = await canvas.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.wheel(0, 100);
 
       await expect(async () => {
-        const newViewBox = await canvas.getAttribute('viewBox');
-        const [, , newWidth] = newViewBox.split(' ').map(Number);
+        const vb = await canvas.getAttribute('viewBox');
+        const newWidth = Number(vb.split(' ')[2]);
         expect(newWidth).toBeGreaterThan(initialWidth);
       }).toPass({ timeout: 3000 });
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // Time speed control buttons
+  // ---------------------------------------------------------------------------
   test.describe('Time speed control buttons', () => {
     test('speed buttons 1x, 2x, 4x, 8x are visible', async ({ page }) => {
-      // Speed buttons should be in the header bar
-      await expect(page.getByRole('button', { name: '1x' })).toBeVisible();
-      await expect(page.getByRole('button', { name: '2x' })).toBeVisible();
-      await expect(page.getByRole('button', { name: '4x' })).toBeVisible();
-      await expect(page.getByRole('button', { name: '8x' })).toBeVisible();
+      for (const m of [1, 2, 4, 8]) {
+        await expect(getSpeedButton(page, m)).toBeVisible();
+      }
     });
 
-    test('1x button is active by default', async ({ page }) => {
-      const btn1x = page.getByRole('button', { name: '1x' });
-      // Active button has bold font weight
+    test('1x button is active by default (bold)', async ({ page }) => {
+      const btn1x = getSpeedButton(page, 1);
       await expect(btn1x).toHaveCSS('font-weight', '700');
     });
 
-    test('clicking 4x button activates it', async ({ page }) => {
-      const btn4x = page.getByRole('button', { name: '4x' });
+    test('clicking 4x activates it and deactivates 1x', async ({ page }) => {
+      const btn4x = getSpeedButton(page, 4);
       await btn4x.click();
-      // Active button should have bold font weight
       await expect(btn4x).toHaveCSS('font-weight', '700');
 
-      // 1x should no longer be bold
-      const btn1x = page.getByRole('button', { name: '1x' });
+      const btn1x = getSpeedButton(page, 1);
       await expect(btn1x).toHaveCSS('font-weight', '400');
     });
 
-    test('higher speed makes clock advance faster', async ({ page }) => {
-      // Close planning panel
+    test('8x speed makes clock advance significantly in 2 seconds', async ({ page }) => {
       await page.getByTestId('close-planning-panel').click();
 
-      // Set 8x speed
-      await page.getByRole('button', { name: '8x' }).click();
+      await getSpeedButton(page, 8).click();
 
       // Start simulation
       await page.getByRole('button', { name: 'Start', exact: true }).click();
-
-      // Wait a brief moment for sim to advance
       await page.waitForTimeout(2000);
-
-      // Pause
       await page.getByRole('button', { name: 'Pause' }).click();
 
-      // At 8x speed, 2 seconds real time = 16 seconds sim time
-      // Starting at 06:00:00, after 16s sim time we should be at ~06:00:16
-      // Check that seconds have advanced significantly
+      // At 8x, 2s real time ~ 16s sim time. Seconds should be > 5.
       await expect(async () => {
-        const timeText = await page.locator('span').filter({ hasText: /:\d{2}/ }).textContent();
-        // Extract seconds value -- the span shows ":SS"
-        const seconds = parseInt(timeText.replace(':', ''), 10);
+        const secondsSpan = page.locator('span').filter({ hasText: /:\d{2}/ });
+        const txt = await secondsSpan.textContent();
+        const seconds = parseInt(txt.replace(':', ''), 10);
         expect(seconds).toBeGreaterThan(5);
       }).toPass({ timeout: 3000 });
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // Clock behaviour
+  // ---------------------------------------------------------------------------
   test.describe('Clock advances when simulation runs', () => {
     test('clock shows initial time 06:00', async ({ page }) => {
       await expect(page.getByText('06:00')).toBeVisible();
@@ -133,102 +197,90 @@ test.describe('UI Controls - Zoom, Speed, Panning', () => {
 
     test('clock advances after simulation starts', async ({ page }) => {
       await page.getByTestId('close-planning-panel').click();
-
-      // Start simulation
       await page.getByRole('button', { name: 'Start', exact: true }).click();
 
-      // Wait for seconds to change
       await expect(async () => {
-        const secondsSpan = page.locator('span').filter({ hasText: /:\d{2}/ });
-        const secondsText = await secondsSpan.textContent();
-        expect(secondsText).not.toBe(':00');
+        const txt = await page.locator('span').filter({ hasText: /:\d{2}/ }).textContent();
+        expect(txt).not.toBe(':00');
       }).toPass({ timeout: 10000 });
 
-      // Pause
       await page.getByRole('button', { name: 'Pause' }).click();
     });
 
-    test('clock stops advancing when paused', async ({ page }) => {
+    test('clock freezes when paused', async ({ page }) => {
       await page.getByTestId('close-planning-panel').click();
-
-      // Start simulation
       await page.getByRole('button', { name: 'Start', exact: true }).click();
       await page.waitForTimeout(1000);
-
-      // Pause
       await page.getByRole('button', { name: 'Pause' }).click();
 
-      // Record time
       const secondsSpan = page.locator('span').filter({ hasText: /:\d{2}/ });
       const pausedTime = await secondsSpan.textContent();
-
-      // Wait and check time hasn't changed
       await page.waitForTimeout(1000);
-      const afterWaitTime = await secondsSpan.textContent();
-      expect(afterWaitTime).toBe(pausedTime);
+      const afterWait = await secondsSpan.textContent();
+      expect(afterWait).toBe(pausedTime);
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // Consist builder horizontal panning
+  // ---------------------------------------------------------------------------
   test.describe('Consist builder horizontal panning', () => {
-    test('consist builder area is visible with items', async ({ page }) => {
-      // Add a locomotive to consist
+    test('consist area shows items after adding stock', async ({ page }) => {
       await page.getByTestId('stock-locomotive').click();
       await page.locator('button:has-text("+")').first().click();
 
-      // Consist area should show the item
       const consistArea = page.getByTestId('consist-area');
       await expect(consistArea).toBeVisible();
       await expect(consistArea.getByTestId('consist-item-locomotive')).toHaveCount(1);
     });
 
-    test('consist area supports mouse drag panning', async ({ page }) => {
-      // Add a locomotive to the consist
+    test('mouse drag on consist area does not crash the app', async ({ page }) => {
       await page.getByTestId('stock-locomotive').click();
       await page.locator('button:has-text("+")').first().click();
 
-      // Wait for consist item to appear
       const consistArea = page.getByTestId('consist-area');
       await expect(consistArea).toBeVisible();
       await expect(consistArea.getByTestId('consist-item-locomotive')).toHaveCount(1);
 
-      // Perform a mouse drag on the consist area
       const box = await consistArea.boundingBox();
       if (box) {
-        // Mouse down, move left, mouse up
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
         await page.mouse.down();
         await page.mouse.move(box.x + box.width / 2 - 50, box.y + box.height / 2);
         await page.mouse.up();
       }
 
-      // The test verifies the drag doesn't crash the app
-      // Visual panning is CSS transform based and hard to assert precisely
+      // App should still be functional
       await expect(consistArea).toBeVisible();
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // Buffer stop visual presence
+  // ---------------------------------------------------------------------------
   test.describe('Buffer stop visual presence', () => {
-    test('buffer stop is rendered on the canvas', async ({ page }) => {
+    test('buffer stop beam is rendered on the canvas', async ({ page }) => {
       await page.getByTestId('close-planning-panel').click();
 
-      const canvas = page.locator('svg').first();
+      const canvas = getCanvas(page);
       await expect(canvas).toBeVisible();
 
-      // Buffer stop is rendered as a group with rect elements (red/brown colored)
-      // Check for the buffer beam element (dark red colored rect)
-      const bufferRects = canvas.locator('rect[fill="#8a2a2a"]');
-      await expect(bufferRects).toHaveCount(1);
+      // Buffer beam: dark red rect (#8a2a2a)
+      // Prefer data-testid="buffer-stop" once available, fall back to color selector
+      const bufferGroup = canvas.getByTestId('buffer-stop');
+      const bufferBeam = canvas.locator('rect[fill="#8a2a2a"]');
+      const beam = bufferGroup.or(bufferBeam);
+      await expect(beam).toBeVisible();
     });
 
-    test('buffer stop has post elements', async ({ page }) => {
+    test('buffer stop has two post elements', async ({ page }) => {
       await page.getByTestId('close-planning-panel').click();
 
-      const canvas = page.locator('svg').first();
+      const canvas = getCanvas(page);
       await expect(canvas).toBeVisible();
 
-      // Buffer posts are darker red
+      // Posts: darker red rects (#6a1a1a)
       const postRects = canvas.locator('rect[fill="#6a1a1a"]');
-      // There are 2 posts
       await expect(postRects).toHaveCount(2);
     });
   });
