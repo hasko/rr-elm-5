@@ -13,6 +13,7 @@ import Programmer.Types as Programmer
         , ProgrammerState
         , ReverserPosition(..)
         , SpotId(..)
+        , SpotTarget(..)
         , SwitchPosition(..)
         , orderDescription
         , spotName
@@ -285,12 +286,21 @@ viewOrderPalette onAddOrder =
 
 viewMoveToSelector : (Order -> msg) -> Html msg
 viewMoveToSelector onAddOrder =
-    div [ style "display" "flex", style "gap" "8px", style "align-items" "center" ]
-        [ label [ style "width" "90px", style "font-size" "14px" ] [ text "Move To" ]
-        , viewSpotButton PlatformSpot onAddOrder
-        , viewSpotButton TeamTrackSpot onAddOrder
-        , viewSpotButton EastTunnelSpot onAddOrder
-        , viewSpotButton WestTunnelSpot onAddOrder
+    div [ style "display" "flex", style "flex-direction" "column", style "gap" "6px" ]
+        [ div [ style "display" "flex", style "gap" "8px", style "align-items" "center" ]
+            [ label [ style "width" "90px", style "font-size" "14px" ] [ text "Move To" ]
+            , viewSpotButton PlatformSpot onAddOrder
+            , viewSpotButton TeamTrackSpot onAddOrder
+            , viewSpotButton EastTunnelSpot onAddOrder
+            , viewSpotButton WestTunnelSpot onAddOrder
+            ]
+        , div [ style "display" "flex", style "gap" "8px", style "align-items" "center" ]
+            [ label [ style "width" "90px", style "font-size" "14px", style "color" "#aaa" ] [ text "Spot Car" ]
+            , viewSpotCarButton 0 PlatformSpot onAddOrder
+            , viewSpotCarButton 1 PlatformSpot onAddOrder
+            , viewSpotCarButton 0 TeamTrackSpot onAddOrder
+            , viewSpotCarButton 1 TeamTrackSpot onAddOrder
+            ]
         ]
 
 
@@ -305,9 +315,25 @@ viewSpotButton spot onAddOrder =
         , style "border-radius" "4px"
         , style "cursor" "pointer"
         , style "font-size" "12px"
-        , onClick (onAddOrder (MoveTo spot))
+        , onClick (onAddOrder (MoveTo spot TrainHead))
         ]
         [ text (spotShortName spot) ]
+
+
+viewSpotCarButton : Int -> SpotId -> (Order -> msg) -> Html msg
+viewSpotCarButton carIndex spot onAddOrder =
+    button
+        [ attribute "data-testid" ("add-spotcar-" ++ String.fromInt carIndex ++ "-" ++ spotTestId spot)
+        , style "background" "#2a5a3a"
+        , style "border" "none"
+        , style "color" "#e0e0e0"
+        , style "padding" "6px 10px"
+        , style "border-radius" "4px"
+        , style "cursor" "pointer"
+        , style "font-size" "12px"
+        , onClick (onAddOrder (MoveTo spot (SpotCar carIndex)))
+        ]
+        [ text ("#" ++ String.fromInt (carIndex + 1) ++ "@" ++ spotShortName spot) ]
 
 
 spotShortName : SpotId -> String

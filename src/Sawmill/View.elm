@@ -3,6 +3,7 @@ module Sawmill.View exposing (view, viewTooltip)
 {-| SVG rendering for the Sawmill puzzle layout.
 -}
 
+import Html.Attributes
 import Json.Decode as Decode
 import Sawmill.Layout as Layout
     exposing
@@ -466,7 +467,8 @@ viewSpot pos name spotType =
 viewBufferStop : Vec2 -> Float -> Svg msg
 viewBufferStop pos orientation =
     Svg.g
-        [ SvgA.transform
+        [ Html.Attributes.attribute "data-testid" "buffer-stop"
+        , SvgA.transform
             ("translate("
                 ++ String.fromFloat pos.x
                 ++ ","

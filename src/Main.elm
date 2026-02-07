@@ -980,69 +980,45 @@ updateAddToConsist toFront model =
 
         Just selectedStock ->
             let
-                -- Find the inventory for current spawn point
-                maybeInventory =
-                    planning.inventories
-                        |> List.filter (\inv -> inv.spawnPointId == planning.selectedSpawnPoint)
-                        |> List.head
+                -- Try to take one item of this type from inventory
+                ( maybeActualStock, newInventories ) =
+                    takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
 
-                -- Check if stock of this type is available
-                stockAvailable =
-                    maybeInventory
-                        |> Maybe.map (\inv -> List.any (\s -> s.stockType == selectedStock.stockType) inv.availableStock)
-                        |> Maybe.withDefault False
+                -- If not available, create a provisional item
+                ( stockToAdd, finalInventories, finalProvisionalId ) =
+                    case maybeActualStock of
+                        Just actualStock ->
+                            ( actualStock, newInventories, planning.nextProvisionalId )
+
+                        Nothing ->
+                            ( { id = planning.nextProvisionalId
+                              , stockType = selectedStock.stockType
+                              , reversed = False
+                              , provisional = True
+                              }
+                            , planning.inventories
+                            , planning.nextProvisionalId - 1
+                            )
+
+                -- Add to front or back
+                newItems =
+                    if toFront then
+                        stockToAdd :: builder.items
+
+                    else
+                        builder.items ++ [ stockToAdd ]
+
+                newBuilder =
+                    { builder | items = newItems, selectedStock = builder.selectedStock }
             in
-            if not stockAvailable then
-                -- Per plan: allow adding even if not available (for future: dashed outline)
-                -- For now, we still need stock from inventory
-                model
-
-            else
-                let
-                    -- Take one item of this type from inventory
-                    ( maybeActualStock, newInventories ) =
-                        takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
-
-                    -- Add to front or back
-                    newItems =
-                        case maybeActualStock of
-                            Just actualStock ->
-                                if toFront then
-                                    actualStock :: builder.items
-
-                                else
-                                    builder.items ++ [ actualStock ]
-
-                            Nothing ->
-                                builder.items
-
-                    -- Check if any of this type remain
-                    remainingOfType =
-                        newInventories
-                            |> List.filter (\inv -> inv.spawnPointId == planning.selectedSpawnPoint)
-                            |> List.head
-                            |> Maybe.map (\inv -> List.filter (\s -> s.stockType == selectedStock.stockType) inv.availableStock)
-                            |> Maybe.map List.length
-                            |> Maybe.withDefault 0
-
-                    -- Clear selection if no more of this type
-                    newSelection =
-                        if remainingOfType > 0 then
-                            builder.selectedStock
-
-                        else
-                            Nothing
-
-                    newBuilder =
-                        { builder | items = newItems, selectedStock = newSelection }
-                in
-                { model
-                    | planningState =
-                        { planning
-                            | consistBuilder = newBuilder
-                            , inventories = newInventories
-                        }
-                }
+            { model
+                | planningState =
+                    { planning
+                        | consistBuilder = newBuilder
+                        , inventories = finalInventories
+                        , nextProvisionalId = finalProvisionalId
+                    }
+            }
 
 
 {-| Insert selected stock into consist at specified index.
@@ -1062,65 +1038,43 @@ updateInsertInConsist index model =
 
         Just selectedStock ->
             let
-                -- Find the inventory for current spawn point
-                maybeInventory =
-                    planning.inventories
-                        |> List.filter (\inv -> inv.spawnPointId == planning.selectedSpawnPoint)
-                        |> List.head
+                -- Try to take one item of this type from inventory
+                ( maybeActualStock, newInventories ) =
+                    takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
 
-                -- Check if stock of this type is available
-                stockAvailable =
-                    maybeInventory
-                        |> Maybe.map (\inv -> List.any (\s -> s.stockType == selectedStock.stockType) inv.availableStock)
-                        |> Maybe.withDefault False
+                -- If not available, create a provisional item
+                ( stockToAdd, finalInventories, finalProvisionalId ) =
+                    case maybeActualStock of
+                        Just actualStock ->
+                            ( actualStock, newInventories, planning.nextProvisionalId )
+
+                        Nothing ->
+                            ( { id = planning.nextProvisionalId
+                              , stockType = selectedStock.stockType
+                              , reversed = False
+                              , provisional = True
+                              }
+                            , planning.inventories
+                            , planning.nextProvisionalId - 1
+                            )
+
+                -- Insert at specified index
+                newItems =
+                    List.take index builder.items
+                        ++ [ stockToAdd ]
+                        ++ List.drop index builder.items
+
+                newBuilder =
+                    { builder | items = newItems, selectedStock = builder.selectedStock }
             in
-            if not stockAvailable then
-                model
-
-            else
-                let
-                    -- Take one item of this type from inventory
-                    ( maybeActualStock, newInventories ) =
-                        takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
-
-                    -- Insert at specified index
-                    newItems =
-                        case maybeActualStock of
-                            Just actualStock ->
-                                List.take index builder.items
-                                    ++ [ actualStock ]
-                                    ++ List.drop index builder.items
-
-                            Nothing ->
-                                builder.items
-
-                    -- Check if any of this type remain
-                    remainingOfType =
-                        newInventories
-                            |> List.filter (\inv -> inv.spawnPointId == planning.selectedSpawnPoint)
-                            |> List.head
-                            |> Maybe.map (\inv -> List.filter (\s -> s.stockType == selectedStock.stockType) inv.availableStock)
-                            |> Maybe.map List.length
-                            |> Maybe.withDefault 0
-
-                    -- Clear selection if no more of this type
-                    newSelection =
-                        if remainingOfType > 0 then
-                            builder.selectedStock
-
-                        else
-                            Nothing
-
-                    newBuilder =
-                        { builder | items = newItems, selectedStock = newSelection }
-                in
-                { model
-                    | planningState =
-                        { planning
-                            | consistBuilder = newBuilder
-                            , inventories = newInventories
-                        }
-                }
+            { model
+                | planningState =
+                    { planning
+                        | consistBuilder = newBuilder
+                        , inventories = finalInventories
+                        , nextProvisionalId = finalProvisionalId
+                    }
+            }
 
 
 {-| Remove stock from consist at index and return to inventory.
@@ -1811,6 +1765,7 @@ viewPlayPauseButton mode =
     button
         [ onClick TogglePlayPause
         , disabled isDisabled
+        , Html.Attributes.attribute "data-testid" "play-pause-button"
         , style "background" bgColor
         , style "color" "#000"
         , style "border" "none"
@@ -1849,6 +1804,7 @@ viewSpeedControls currentMultiplier =
             in
             button
                 [ onClick (SetTimeMultiplier mult)
+                , Html.Attributes.attribute "data-testid" ("speed-control-" ++ label)
                 , style "background"
                     (if isActive then
                         "#4a9eff"
@@ -1907,7 +1863,7 @@ viewGameTime time =
         secStr =
             String.padLeft 2 '0' (String.fromInt seconds)
     in
-    div []
+    div [ Html.Attributes.attribute "data-testid" "game-clock" ]
         [ text (hourStr ++ ":" ++ minStr)
         , span [ style "font-size" "0.7em", style "opacity" "0.7" ]
             [ text (":" ++ secStr) ]
@@ -1929,7 +1885,8 @@ viewModeIndicator mode =
                     ( "PAUSED", "#ffaa4a" )
     in
     div
-        [ style "background" color
+        [ Html.Attributes.attribute "data-testid" "mode-indicator"
+        , style "background" color
         , style "color" "#000"
         , style "padding" "4px 12px"
         , style "border-radius" "4px"
@@ -1999,6 +1956,7 @@ viewCanvas model =
         [ SvgA.width "100%"
         , SvgA.height "100%"
         , SvgA.viewBox viewBoxStr
+        , Html.Attributes.attribute "data-testid" "svg-canvas"
         , style "background" "#3a5a3a" -- Grass green
         , style "flex" "1"
         , style "cursor"

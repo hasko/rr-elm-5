@@ -4,7 +4,7 @@ import Expect
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Planning.Types exposing (SpawnPointId(..), StockType(..))
-import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SwitchPosition(..))
+import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SpotTarget(..), SwitchPosition(..))
 import Storage exposing (SavedState, SavedTrain, decodeSavedState, encodeSavedState)
 import Test exposing (..)
 
@@ -78,8 +78,8 @@ roundTripTests =
                             | activeTrains =
                                 [ { id = 1
                                   , consist =
-                                        [ { id = 1, stockType = Locomotive, reversed = False }
-                                        , { id = 2, stockType = Flatbed, reversed = False }
+                                        [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
+                                        , { id = 2, stockType = Flatbed, reversed = False, provisional = False }
                                         ]
                                   , position = 123.45
                                   , speed = 11.11
@@ -115,10 +115,10 @@ roundTripTests =
                                 [ { id = 1
                                   , spawnPoint = WestStation
                                   , departureTime = { day = 2, hour = 14, minute = 30 }
-                                  , consist = [ { id = 4, stockType = Boxcar, reversed = False } ]
+                                  , consist = [ { id = 4, stockType = Boxcar, reversed = False, provisional = False } ]
                                   , program =
                                         [ SetReverser Forward
-                                        , MoveTo PlatformSpot
+                                        , MoveTo PlatformSpot TrainHead
                                         , WaitSeconds 30
                                         , SetSwitch "main" Diverging
                                         ]
@@ -151,15 +151,15 @@ roundTripTests =
                             | inventories =
                                 [ { spawnPointId = EastStation
                                   , availableStock =
-                                        [ { id = 1, stockType = Locomotive, reversed = False }
-                                        , { id = 2, stockType = PassengerCar, reversed = False }
-                                        , { id = 3, stockType = Flatbed, reversed = False }
+                                        [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
+                                        , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
+                                        , { id = 3, stockType = Flatbed, reversed = False, provisional = False }
                                         ]
                                   }
                                 , { spawnPointId = WestStation
                                   , availableStock =
-                                        [ { id = 4, stockType = Locomotive, reversed = False }
-                                        , { id = 5, stockType = Boxcar, reversed = False }
+                                        [ { id = 4, stockType = Locomotive, reversed = False, provisional = False }
+                                        , { id = 5, stockType = Boxcar, reversed = False, provisional = False }
                                         ]
                                   }
                                 ]
@@ -194,10 +194,10 @@ roundTripTests =
                             | inventories =
                                 [ { spawnPointId = EastStation
                                   , availableStock =
-                                        [ { id = 1, stockType = Locomotive, reversed = False }
-                                        , { id = 2, stockType = PassengerCar, reversed = False }
-                                        , { id = 3, stockType = Flatbed, reversed = False }
-                                        , { id = 4, stockType = Boxcar, reversed = False }
+                                        [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
+                                        , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
+                                        , { id = 3, stockType = Flatbed, reversed = False, provisional = False }
+                                        , { id = 4, stockType = Boxcar, reversed = False, provisional = False }
                                         ]
                                   }
                                 ]
@@ -216,10 +216,10 @@ roundTripTests =
             \_ ->
                 let
                     allOrders =
-                        [ MoveTo PlatformSpot
-                        , MoveTo TeamTrackSpot
-                        , MoveTo EastTunnelSpot
-                        , MoveTo WestTunnelSpot
+                        [ MoveTo PlatformSpot TrainHead
+                        , MoveTo TeamTrackSpot TrainHead
+                        , MoveTo EastTunnelSpot TrainHead
+                        , MoveTo WestTunnelSpot TrainHead
                         , SetReverser Forward
                         , SetReverser Reverse
                         , SetSwitch "main" Normal
@@ -236,7 +236,7 @@ roundTripTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = allOrders
                                   }
                                 ]
@@ -311,13 +311,13 @@ roundTripTests =
                         { minimalState
                             | activeTrains =
                                 [ { id = 1
-                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , position = 50
                                   , speed = 10
                                   , spawnPoint = EastStation
                                   }
                                 , { id = 2
-                                  , consist = [ { id = 2, stockType = Locomotive, reversed = False } ]
+                                  , consist = [ { id = 2, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , position = 100
                                   , speed = 10
                                   , spawnPoint = WestStation
@@ -371,7 +371,7 @@ edgeCaseTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = []
                                   }
                                 ]
@@ -407,7 +407,7 @@ edgeCaseTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = [ Couple ]
                                   }
                                 ]
@@ -431,7 +431,7 @@ edgeCaseTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = [ Uncouple 2 ]
                                   }
                                 ]
@@ -456,8 +456,8 @@ edgeCaseTests =
                                 [ { id = 1
                                   , spawnPoint = EastStation
                                   , departureTime = { day = 0, hour = 0, minute = 0 }
-                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False } ]
-                                  , program = [ SetReverser Forward, MoveTo PlatformSpot ]
+                                  , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
+                                  , program = [ SetReverser Forward, MoveTo PlatformSpot TrainHead ]
                                   }
                                 ]
                         }
@@ -467,7 +467,7 @@ edgeCaseTests =
                         decoded.scheduledTrains
                             |> List.head
                             |> Maybe.map .program
-                            |> Expect.equal (Just [ SetReverser Forward, MoveTo PlatformSpot ])
+                            |> Expect.equal (Just [ SetReverser Forward, MoveTo PlatformSpot TrainHead ])
 
                     Err err ->
                         Expect.fail ("Decode failed: " ++ Decode.errorToString err)

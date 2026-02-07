@@ -47,6 +47,7 @@ type alias StockItem =
     { id : Int
     , stockType : StockType
     , reversed : Bool
+    , provisional : Bool
     }
 
 
@@ -111,6 +112,7 @@ type alias PlanningState =
     , timePickerMinute : Int
     , timePickerDay : Int
     , nextTrainId : Int
+    , nextProvisionalId : Int
     , editingTrainId : Maybe Int -- When editing existing train
     , editingTrainProgram : Program -- Program of train being edited
     , panelMode : PanelMode
@@ -138,16 +140,16 @@ initPlanningState =
     , inventories =
         [ { spawnPointId = EastStation
           , availableStock =
-                [ { id = 1, stockType = Locomotive, reversed = False }
-                , { id = 2, stockType = PassengerCar, reversed = False }
-                , { id = 3, stockType = Flatbed, reversed = False }
+                [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
+                , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
+                , { id = 3, stockType = Flatbed, reversed = False, provisional = False }
                 ]
           }
         , { spawnPointId = WestStation
           , availableStock =
-                [ { id = 4, stockType = Locomotive, reversed = False }
-                , { id = 5, stockType = Boxcar, reversed = False }
-                , { id = 6, stockType = Boxcar, reversed = False }
+                [ { id = 4, stockType = Locomotive, reversed = False, provisional = False }
+                , { id = 5, stockType = Boxcar, reversed = False, provisional = False }
+                , { id = 6, stockType = Boxcar, reversed = False, provisional = False }
                 ]
           }
         ]
@@ -156,6 +158,7 @@ initPlanningState =
     , timePickerMinute = 0
     , timePickerDay = 0
     , nextTrainId = 1
+    , nextProvisionalId = -1
     , editingTrainId = Nothing
     , editingTrainProgram = emptyProgram
     , panelMode = PlanningView

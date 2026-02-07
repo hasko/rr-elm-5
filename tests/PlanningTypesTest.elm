@@ -127,7 +127,7 @@ suite =
                 \_ ->
                     let
                         item =
-                            { id = 42, stockType = Locomotive, reversed = False }
+                            { id = 42, stockType = Locomotive, reversed = False, provisional = False }
                     in
                     ( item.id, item.stockType )
                         |> Expect.equal ( 42, Locomotive )
@@ -149,8 +149,8 @@ suite =
                         inventory =
                             { spawnPointId = EastStation
                             , availableStock =
-                                [ { id = 1, stockType = Locomotive, reversed = False }
-                                , { id = 2, stockType = PassengerCar, reversed = False }
+                                [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
+                                , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
                                 ]
                             }
                     in
@@ -165,7 +165,7 @@ suite =
                             { id = 5
                             , spawnPoint = WestStation
                             , departureTime = { day = 1, hour = 8, minute = 30 }
-                            , consist = [ { id = 10, stockType = Locomotive, reversed = False } ]
+                            , consist = [ { id = 10, stockType = Locomotive, reversed = False, provisional = False } ]
                             }
                     in
                     ( train.id, train.spawnPoint, List.length train.consist )

@@ -348,6 +348,7 @@ viewAvailableStock state onSelectStock =
 
 
 {-| Group stock items by type and return (type, count, representative item).
+Always returns all stock types, even those with 0 count.
 -}
 groupAndCountStock : List StockItem -> List ( StockType, Int, StockItem )
 groupAndCountStock items =
@@ -359,15 +360,18 @@ groupAndCountStock items =
             let
                 matching =
                     List.filter (\s -> s.stockType == stockType) items
-            in
-            case matching of
-                first :: _ ->
-                    Just ( stockType, List.length matching, first )
 
-                [] ->
-                    Nothing
+                representative =
+                    case matching of
+                        first :: _ ->
+                            first
+
+                        [] ->
+                            { id = 0, stockType = stockType, reversed = False, provisional = False }
+            in
+            ( stockType, List.length matching, representative )
     in
-    List.filterMap countType stockTypes
+    List.map countType stockTypes
 
 
 viewStockTypeItem : Maybe StockItem -> (StockItem -> msg) -> ( StockType, Int, StockItem ) -> Html msg
@@ -380,12 +384,22 @@ viewStockTypeItem selectedItem onSelect ( stockType, count, representative ) =
 
                 Nothing ->
                     False
+
+        isUnavailable =
+            count == 0
     in
     div
         [ attribute "data-testid" ("stock-" ++ stockTypeTestId stockType)
         , style "position" "relative"
         , style "cursor" "pointer"
         , style "padding" "8px"
+        , style "opacity"
+            (if isUnavailable then
+                "0.4"
+
+             else
+                "1"
+            )
         , style "background"
             (if isSelected then
                 "#2a4a6e"
@@ -409,7 +423,13 @@ viewStockTypeItem selectedItem onSelect ( stockType, count, representative ) =
             [ style "position" "absolute"
             , style "top" "-8px"
             , style "right" "-8px"
-            , style "background" "#4a9eff"
+            , style "background"
+                (if isUnavailable then
+                    "#666"
+
+                 else
+                    "#4a9eff"
+                )
             , style "color" "#fff"
             , style "border-radius" "50%"
             , style "width" "20px"
@@ -751,6 +771,13 @@ viewConsistItem onRemove onFlipLoco index item =
 
             else
                 ""
+
+        borderStyle =
+            if item.provisional then
+                "2px dashed #aa8833"
+
+            else
+                "2px solid #555"
     in
     div
         [ attribute "data-testid" ("consist-item-" ++ stockTypeTestId item.stockType)
@@ -760,7 +787,7 @@ viewConsistItem onRemove onFlipLoco index item =
         [ div
             [ style "width" "60px"
             , style "height" "40px"
-            , style "border" "2px solid #555"
+            , style "border" borderStyle
             , style "border-radius" "4px"
             , style "display" "flex"
             , style "align-items" "center"

@@ -11,19 +11,19 @@ suite =
         [ describe "orderDescription"
             [ test "MoveTo Platform shows correct description" <|
                 \_ ->
-                    orderDescription (MoveTo PlatformSpot)
+                    orderDescription (MoveTo PlatformSpot TrainHead)
                         |> Expect.equal "Move To Platform"
             , test "MoveTo Team Track shows correct description" <|
                 \_ ->
-                    orderDescription (MoveTo TeamTrackSpot)
+                    orderDescription (MoveTo TeamTrackSpot TrainHead)
                         |> Expect.equal "Move To Team Track"
             , test "MoveTo East Tunnel shows correct description" <|
                 \_ ->
-                    orderDescription (MoveTo EastTunnelSpot)
+                    orderDescription (MoveTo EastTunnelSpot TrainHead)
                         |> Expect.equal "Move To East Tunnel"
             , test "MoveTo West Tunnel shows correct description" <|
                 \_ ->
-                    orderDescription (MoveTo WestTunnelSpot)
+                    orderDescription (MoveTo WestTunnelSpot TrainHead)
                         |> Expect.equal "Move To West Tunnel"
             , test "SetReverser Forward shows correct description" <|
                 \_ ->
@@ -95,7 +95,7 @@ suite =
                 \_ ->
                     let
                         program =
-                            [ SetReverser Forward, MoveTo PlatformSpot ]
+                            [ SetReverser Forward, MoveTo PlatformSpot TrainHead ]
 
                         state =
                             initProgrammerState 1 program
@@ -119,10 +119,10 @@ suite =
                             [ SetReverser Forward ]
 
                         newProgram =
-                            program ++ [ MoveTo PlatformSpot ]
+                            program ++ [ MoveTo PlatformSpot TrainHead ]
                     in
                     newProgram
-                        |> Expect.equal [ SetReverser Forward, MoveTo PlatformSpot ]
+                        |> Expect.equal [ SetReverser Forward, MoveTo PlatformSpot TrainHead ]
             , test "program can contain multiple orders of same type" <|
                 \_ ->
                     let
@@ -137,10 +137,10 @@ suite =
                         program =
                             [ SetSwitch "main" Diverging
                             , SetReverser Reverse
-                            , MoveTo TeamTrackSpot
+                            , MoveTo TeamTrackSpot TrainHead
                             , WaitSeconds 60
                             , SetReverser Forward
-                            , MoveTo EastTunnelSpot
+                            , MoveTo EastTunnelSpot TrainHead
                             ]
                     in
                     List.map orderDescription program
@@ -156,13 +156,13 @@ suite =
                 \_ ->
                     let
                         program =
-                            [ MoveTo TeamTrackSpot
+                            [ MoveTo TeamTrackSpot TrainHead
                             , Couple
                             , SetReverser Reverse
-                            , MoveTo PlatformSpot
+                            , MoveTo PlatformSpot TrainHead
                             , Uncouple 1
                             , SetReverser Forward
-                            , MoveTo EastTunnelSpot
+                            , MoveTo EastTunnelSpot TrainHead
                             ]
                     in
                     List.map orderDescription program

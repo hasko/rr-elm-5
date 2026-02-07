@@ -49,10 +49,14 @@ Adds the given items back to the inventory for the specified spawn point.
 -}
 returnStockToInventory : SpawnPointId -> List StockItem -> List SpawnPointInventory -> List SpawnPointInventory
 returnStockToInventory spawnId items inventories =
+    let
+        nonProvisional =
+            List.filter (\item -> not item.provisional) items
+    in
     List.map
         (\inv ->
             if inv.spawnPointId == spawnId then
-                { inv | availableStock = inv.availableStock ++ items }
+                { inv | availableStock = inv.availableStock ++ nonProvisional }
 
             else
                 inv

@@ -12,9 +12,9 @@ Each tick, trains with a program advance through their orders:
 
 -}
 
-import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), spotName)
+import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SpotTarget(..), spotName)
 import Train.Route as Route
-import Train.Stock exposing (consistLength)
+import Train.Stock exposing (carCenterOffset, consistLength)
 import Train.Types exposing (ActiveTrain, Effect(..), Route, TrainState(..))
 
 
@@ -84,8 +84,8 @@ executeCurrentOrder deltaSeconds train =
 
         Just order ->
             case order of
-                MoveTo spotId ->
-                    executeMoveTo deltaSeconds spotId train
+                MoveTo spotId spotTarget ->
+                    executeMoveTo deltaSeconds spotId spotTarget train
 
                 SetReverser pos ->
                     -- Instant: set reverser and advance
@@ -121,8 +121,8 @@ executeCurrentOrder deltaSeconds train =
 
 {-| Execute a MoveTo order: accelerate toward target, brake to stop.
 -}
-executeMoveTo : Float -> SpotId -> ActiveTrain -> ( ActiveTrain, List Effect )
-executeMoveTo deltaSeconds spotId train =
+executeMoveTo : Float -> SpotId -> SpotTarget -> ActiveTrain -> ( ActiveTrain, List Effect )
+executeMoveTo deltaSeconds spotId spotTarget train =
     case Route.spotPosition spotId train.route of
         Nothing ->
             -- Spot not reachable on this route
@@ -133,8 +133,24 @@ executeMoveTo deltaSeconds spotId train =
             , []
             )
 
-        Just targetDistance ->
+        Just spotDistance ->
             let
+                -- Compute offset for car-specific spotting
+                -- The train head needs to be ahead of the car center by the offset
+                targetDistance =
+                    case spotTarget of
+                        TrainHead ->
+                            spotDistance
+
+                        SpotCar carIndex ->
+                            case carCenterOffset carIndex train.consist of
+                                Just offset ->
+                                    spotDistance + offset
+
+                                Nothing ->
+                                    -- Invalid car index, fall back to train head
+                                    spotDistance
+
                 -- Determine direction based on reverser
                 directionSign =
                     case train.reverser of

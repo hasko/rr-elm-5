@@ -1,5 +1,6 @@
 module Programmer.Types exposing
     ( SpotId(..)
+    , SpotTarget(..)
     , ReverserPosition(..)
     , SwitchPosition(..)
     , Order(..)
@@ -38,10 +39,19 @@ type SwitchPosition
     | Diverging
 
 
+{-| Target specification for a MoveTo order.
+TrainHead = position train head at spot (default, backward compatible).
+SpotCar Int = position the center of car at given 0-based index at the spot.
+-}
+type SpotTarget
+    = TrainHead
+    | SpotCar Int
+
+
 {-| Train orders - explicit commands that trains execute sequentially.
 -}
 type Order
-    = MoveTo SpotId
+    = MoveTo SpotId SpotTarget
     | SetReverser ReverserPosition
     | SetSwitch String SwitchPosition
     | WaitSeconds Int
@@ -104,8 +114,13 @@ spotName spot =
 orderDescription : Order -> String
 orderDescription order =
     case order of
-        MoveTo spot ->
-            "Move To " ++ spotName spot
+        MoveTo spot target ->
+            case target of
+                TrainHead ->
+                    "Move To " ++ spotName spot
+
+                SpotCar carIndex ->
+                    "Spot Car " ++ String.fromInt (carIndex + 1) ++ " at " ++ spotName spot
 
         SetReverser Forward ->
             "Set Reverser Forward"

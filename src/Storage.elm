@@ -12,7 +12,7 @@ module Storage exposing
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Planning.Types exposing (DepartureTime, ScheduledTrain, SpawnPointId(..), SpawnPointInventory, StockItem, StockType(..))
-import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SwitchPosition(..))
+import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SpotTarget(..), SwitchPosition(..))
 import Sawmill.Layout exposing (SwitchState)
 import Train.Route as Route
 import Train.Types exposing (Route)
@@ -119,6 +119,7 @@ encodeStockItem item =
         [ ( "id", Encode.int item.id )
         , ( "stockType", encodeStockType item.stockType )
         , ( "reversed", Encode.bool item.reversed )
+        , ( "provisional", Encode.bool item.provisional )
         ]
 
 
@@ -162,11 +163,19 @@ encodeDepartureTime dt =
 encodeOrder : Order -> Encode.Value
 encodeOrder order =
     case order of
-        MoveTo spot ->
+        MoveTo spot target ->
             Encode.object
-                [ ( "type", Encode.string "MoveTo" )
-                , ( "spot", encodeSpotId spot )
-                ]
+                ([ ( "type", Encode.string "MoveTo" )
+                 , ( "spot", encodeSpotId spot )
+                 ]
+                    ++ (case target of
+                            TrainHead ->
+                                []
+
+                            SpotCar carIndex ->
+                                [ ( "spotCar", Encode.int carIndex ) ]
+                       )
+                )
 
         SetReverser pos ->
             Encode.object
@@ -328,11 +337,16 @@ decodeInventory =
 
 decodeStockItem : Decoder StockItem
 decodeStockItem =
-    Decode.map3 StockItem
+    Decode.map4 StockItem
         (Decode.field "id" Decode.int)
         (Decode.field "stockType" decodeStockType)
         (Decode.oneOf
             [ Decode.field "reversed" Decode.bool
+            , Decode.succeed False
+            ]
+        )
+        (Decode.oneOf
+            [ Decode.field "provisional" Decode.bool
             , Decode.succeed False
             ]
         )
@@ -393,7 +407,13 @@ decodeOrder =
             (\orderType ->
                 case orderType of
                     "MoveTo" ->
-                        Decode.map MoveTo (Decode.field "spot" decodeSpotId)
+                        Decode.map2 MoveTo
+                            (Decode.field "spot" decodeSpotId)
+                            (Decode.field "spotCar" Decode.int
+                                |> Decode.map SpotCar
+                                |> Decode.maybe
+                                |> Decode.map (Maybe.withDefault TrainHead)
+                            )
 
                     "SetReverser" ->
                         Decode.map SetReverser (Decode.field "position" decodeReverserPosition)

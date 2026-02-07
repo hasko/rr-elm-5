@@ -266,11 +266,8 @@ test.describe('UI Controls - Zoom, Speed, Panning', () => {
       await expect(canvas).toBeVisible();
 
       // Buffer beam: dark red rect (#8a2a2a)
-      // Prefer data-testid="buffer-stop" once available, fall back to color selector
       const bufferGroup = canvas.getByTestId('buffer-stop');
-      const bufferBeam = canvas.locator('rect[fill="#8a2a2a"]');
-      const beam = bufferGroup.or(bufferBeam);
-      await expect(beam).toBeVisible();
+      await expect(bufferGroup).toBeVisible();
     });
 
     test('buffer stop has two post elements', async ({ page }) => {
