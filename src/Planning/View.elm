@@ -43,6 +43,9 @@ viewPlanningPanel :
     , onSelectTrain : Int -> msg
     , onOpenProgrammer : Int -> msg
     , onReset : msg
+    , onConsistDragStart : Float -> msg
+    , onConsistDragMove : Float -> msg
+    , onConsistDragEnd : msg
     }
     -> Html msg
 viewPlanningPanel config =
@@ -60,7 +63,7 @@ viewPlanningPanel config =
         , viewSpawnPointSelector config.state.selectedSpawnPoint config.onSelectSpawnPoint
         , viewScheduledTrains config.state config.onRemoveTrain config.onSelectTrain config.onOpenProgrammer
         , viewAvailableStock config.state config.onSelectStock
-        , viewConsistBuilder config.state.consistBuilder config.state.selectedSpawnPoint config.onAddToFront config.onAddToBack config.onInsertInConsist config.onRemoveFromConsist config.onClearConsist config.onFlipLoco
+        , viewConsistBuilder config.state.consistBuilder config.state.selectedSpawnPoint config.state.consistPanOffset config.state.consistDragState config.onAddToFront config.onAddToBack config.onInsertInConsist config.onRemoveFromConsist config.onClearConsist config.onFlipLoco config.onConsistDragStart config.onConsistDragMove config.onConsistDragEnd
         , viewScheduleControls config.state config.onSetDay config.onSetHour config.onSetMinute config.onSchedule config.onOpenProgrammer
         ]
 
@@ -500,14 +503,17 @@ getItemAt index list =
         |> List.head
 
 
-viewConsistBuilder : ConsistBuilder -> SpawnPointId -> msg -> msg -> (Int -> msg) -> (Int -> msg) -> msg -> (Int -> msg) -> Html msg
-viewConsistBuilder builder selectedSpawnPoint onAddFront onAddBack onInsert onRemove onClear onFlipLoco =
+viewConsistBuilder : ConsistBuilder -> SpawnPointId -> Float -> Maybe Planning.ConsistDragState -> msg -> msg -> (Int -> msg) -> (Int -> msg) -> msg -> (Int -> msg) -> (Float -> msg) -> (Float -> msg) -> msg -> Html msg
+viewConsistBuilder builder selectedSpawnPoint panOffset dragState onAddFront onAddBack onInsert onRemove onClear onFlipLoco onDragStart onDragMove onDragEnd =
     let
         hasSelection =
             builder.selectedStock /= Nothing
 
         items =
             builder.items
+
+        isDragging =
+            dragState /= Nothing
     in
     div
         [ style "padding" "12px 16px"
@@ -551,42 +557,60 @@ viewConsistBuilder builder selectedSpawnPoint onAddFront onAddBack onInsert onRe
                     text ""
             , div
                 [ attribute "data-testid" "consist-area"
-                , style "display" "flex"
-                , style "gap" "4px"
-                , style "padding" "8px"
+                , style "overflow" "hidden"
                 , style "background" "#151520"
                 , style "border-radius" "4px"
                 , style "min-height" "50px"
-                , style "align-items" "center"
                 , style "flex" "1"
-                , style "justify-content"
-                    (if List.isEmpty items then
-                        "center"
+                , style "cursor"
+                    (if isDragging then
+                        "grabbing"
+
+                     else if List.length items > 3 then
+                        "grab"
 
                      else
-                        "flex-start"
+                        "default"
+                    )
+                , style "user-select" "none"
+                , Html.Events.on "mousedown" (decodeClientX onDragStart)
+                , Html.Events.on "mousemove" (decodeClientX onDragMove)
+                , Html.Events.on "mouseup" (Decode.succeed onDragEnd)
+                , Html.Events.on "mouseleave" (Decode.succeed onDragEnd)
+                ]
+                [ div
+                    [ style "display" "flex"
+                    , style "gap" "4px"
+                    , style "padding" "8px"
+                    , style "align-items" "center"
+                    , style "transform" ("translateX(" ++ String.fromFloat panOffset ++ "px)")
+                    , style "justify-content"
+                        (if List.isEmpty items then
+                            "center"
+
+                         else
+                            "flex-start"
+                        )
+                    ]
+                    (if List.isEmpty items then
+                        [ viewAddButton hasSelection onAddBack ]
+
+                     else
+                        [ viewAddButton hasSelection onAddFront ]
+                            ++ List.concatMap
+                                (\index ->
+                                    case getItemAt index items of
+                                        Just item ->
+                                            [ viewConsistItem onRemove onFlipLoco index item
+                                            , viewAddButton hasSelection (onInsert (index + 1))
+                                            ]
+
+                                        Nothing ->
+                                            []
+                                )
+                                (List.range 0 (List.length items - 1))
                     )
                 ]
-                (if List.isEmpty items then
-                    -- Single centered + button when empty
-                    [ viewAddButton hasSelection onAddBack ]
-
-                 else
-                    -- [+] [item] [+] [item] [+] ... [+]
-                    [ viewAddButton hasSelection onAddFront ]
-                        ++ List.concatMap
-                            (\index ->
-                                case getItemAt index items of
-                                    Just item ->
-                                        [ viewConsistItem onRemove onFlipLoco index item
-                                        , viewAddButton hasSelection (onInsert (index + 1))
-                                        ]
-
-                                    Nothing ->
-                                        []
-                            )
-                            (List.range 0 (List.length items - 1))
-                )
             , case selectedSpawnPoint of
                 WestStation ->
                     viewDestinationLabel (destinationLabel selectedSpawnPoint)
@@ -611,6 +635,13 @@ viewConsistBuilder builder selectedSpawnPoint onAddFront onAddBack onInsert onRe
                     ]
                     [ text "Select stock from above to add to consist" ]
         ]
+
+
+{-| Decode clientX from mouse event.
+-}
+decodeClientX : (Float -> msg) -> Decode.Decoder msg
+decodeClientX toMsg =
+    Decode.map toMsg (Decode.field "clientX" Decode.float)
 
 
 {-| Destination label for the consist builder.

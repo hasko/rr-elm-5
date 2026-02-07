@@ -7,6 +7,7 @@ module Planning.Types exposing
     , ScheduledTrain
     , SpawnPointInventory
     , ConsistBuilder
+    , ConsistDragState
     , PlanningState
     , PanelMode(..)
     , initPlanningState
@@ -83,6 +84,14 @@ type alias SpawnPointInventory =
     }
 
 
+{-| Drag state for consist horizontal panning.
+-}
+type alias ConsistDragState =
+    { startX : Float -- Screen X where drag started
+    , startOffset : Float -- Pan offset when drag started
+    }
+
+
 {-| State for the consist builder UI.
 -}
 type alias ConsistBuilder =
@@ -106,6 +115,8 @@ type alias PlanningState =
     , editingTrainProgram : Program -- Program of train being edited
     , panelMode : PanelMode
     , programmerState : Maybe ProgrammerState
+    , consistPanOffset : Float -- Horizontal pan offset in pixels
+    , consistDragState : Maybe ConsistDragState
     }
 
 
@@ -149,6 +160,8 @@ initPlanningState =
     , editingTrainProgram = emptyProgram
     , panelMode = PlanningView
     , programmerState = Nothing
+    , consistPanOffset = 0
+    , consistDragState = Nothing
     }
 
 

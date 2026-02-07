@@ -288,7 +288,7 @@ interactiveElements turnoutState =
       , tooltip = "Team Track (freight spot)"
       }
     , { id = BufferStopId
-      , element = BufferStop bufferPos (totalCurveAngle + pi / 2)
+      , element = BufferStop bufferPos (totalCurveAngle - pi / 2)
       , bounds = { x = bufferPos.x - 10, y = bufferPos.y - 10, width = 20, height = 20 }
       , tooltip = "Buffer Stop"
       }

@@ -238,6 +238,8 @@ type Msg
     | StartDrag Float Float -- Screen x, y where mousedown occurred
     | Drag Float Float -- Current screen x, y during drag
     | EndDrag -- Mouseup or mouseleave
+    | Zoom Float Float Float -- deltaY, mouseX, mouseY in screen coords
+    | SetTimeMultiplier Float
     | NoOp
       -- Storage messages
     | SaveTick Time.Posix
@@ -252,6 +254,9 @@ type Msg
     | RemoveFromConsist Int -- Remove item at index
     | ClearConsistBuilder
     | FlipLocoInConsist Int -- Toggle reversed flag on loco at index
+    | ConsistDragStart Float -- Screen X where mousedown occurred
+    | ConsistDragMove Float -- Current screen X during drag
+    | ConsistDragEnd
     | SetTimePickerHour Int
     | SetTimePickerMinute Int
     | SetTimePickerDay Int
@@ -512,6 +517,52 @@ update msg model =
         EndDrag ->
             ( { model | dragState = Nothing }, Cmd.none )
 
+        Zoom deltaY mouseX mouseY ->
+            let
+                -- Zoom factor: scroll up = zoom in, scroll down = zoom out
+                zoomFactor =
+                    if deltaY < 0 then
+                        1.1
+
+                    else
+                        1 / 1.1
+
+                oldZoom =
+                    model.camera.zoom
+
+                newZoom =
+                    clamp 0.5 10.0 (oldZoom * zoomFactor)
+
+                -- Convert mouse screen position to world coordinates (before zoom)
+                halfWidth =
+                    model.viewportSize.width / 2
+
+                halfHeight =
+                    model.viewportSize.height / 2
+
+                worldX =
+                    model.camera.center.x + (mouseX - halfWidth) / oldZoom
+
+                worldY =
+                    model.camera.center.y + (mouseY - halfHeight) / oldZoom
+
+                -- Adjust camera center so the world point under mouse stays fixed
+                newCenterX =
+                    worldX - (mouseX - halfWidth) / newZoom
+
+                newCenterY =
+                    worldY - (mouseY - halfHeight) / newZoom
+
+                newCamera =
+                    { center = Vec2.vec2 newCenterX newCenterY
+                    , zoom = newZoom
+                    }
+            in
+            ( { model | camera = newCamera }, Cmd.none )
+
+        SetTimeMultiplier multiplier ->
+            ( { model | timeMultiplier = multiplier }, Cmd.none )
+
         NoOp ->
             ( model, Cmd.none )
 
@@ -573,6 +624,7 @@ update msg model =
                         | consistBuilder = Planning.emptyConsistBuilder
                         , inventories = newInventories
                         , editingTrainId = Nothing
+                        , consistPanOffset = 0
                     }
               }
             , Cmd.none
@@ -601,6 +653,60 @@ update msg model =
                     { builder | items = newItems }
             in
             ( { model | planningState = { planning | consistBuilder = newBuilder } }
+            , Cmd.none
+            )
+
+        ConsistDragStart screenX ->
+            let
+                planning =
+                    model.planningState
+            in
+            ( { model
+                | planningState =
+                    { planning
+                        | consistDragState =
+                            Just
+                                { startX = screenX
+                                , startOffset = planning.consistPanOffset
+                                }
+                    }
+              }
+            , Cmd.none
+            )
+
+        ConsistDragMove screenX ->
+            let
+                planning =
+                    model.planningState
+            in
+            case planning.consistDragState of
+                Just drag ->
+                    let
+                        deltaX =
+                            screenX - drag.startX
+
+                        newOffset =
+                            drag.startOffset + deltaX
+                    in
+                    ( { model
+                        | planningState =
+                            { planning | consistPanOffset = newOffset }
+                      }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        ConsistDragEnd ->
+            let
+                planning =
+                    model.planningState
+            in
+            ( { model
+                | planningState =
+                    { planning | consistDragState = Nothing }
+              }
             , Cmd.none
             )
 
@@ -1526,6 +1632,9 @@ viewRightPanel model =
                 , onSelectTrain = SelectScheduledTrain
                 , onOpenProgrammer = OpenProgrammer
                 , onReset = ResetGame
+                , onConsistDragStart = ConsistDragStart
+                , onConsistDragMove = ConsistDragMove
+                , onConsistDragEnd = ConsistDragEnd
                 }
 
         ProgrammerView trainId ->
@@ -1678,6 +1787,7 @@ viewHeader model =
             [ text "Railroad Switching Puzzle - Sawmill" ]
         , div [ style "display" "flex", style "gap" "20px", style "align-items" "center" ]
             [ viewGameTime model.gameTime
+            , viewSpeedControls model.timeMultiplier
             , viewPlayPauseButton model.mode
             , viewModeIndicator model.mode
             ]
@@ -1724,6 +1834,53 @@ viewPlayPauseButton mode =
         , style "font-family" "monospace"
         ]
         [ text label ]
+
+
+viewSpeedControls : Float -> Html Msg
+viewSpeedControls currentMultiplier =
+    let
+        speeds =
+            [ ( 1, "1x" ), ( 2, "2x" ), ( 4, "4x" ), ( 8, "8x" ) ]
+
+        viewSpeedButton ( mult, label ) =
+            let
+                isActive =
+                    currentMultiplier == mult
+            in
+            button
+                [ onClick (SetTimeMultiplier mult)
+                , style "background"
+                    (if isActive then
+                        "#4a9eff"
+
+                     else
+                        "#333"
+                    )
+                , style "color"
+                    (if isActive then
+                        "#000"
+
+                     else
+                        "#e0e0e0"
+                    )
+                , style "border" "none"
+                , style "padding" "4px 8px"
+                , style "border-radius" "3px"
+                , style "cursor" "pointer"
+                , style "font-family" "monospace"
+                , style "font-size" "12px"
+                , style "font-weight"
+                    (if isActive then
+                        "bold"
+
+                     else
+                        "normal"
+                    )
+                ]
+                [ text label ]
+    in
+    div [ style "display" "flex", style "gap" "4px", style "align-items" "center" ]
+        (List.map viewSpeedButton speeds)
 
 
 viewGameTime : GameTime -> Html Msg
@@ -1855,6 +2012,7 @@ viewCanvas model =
         , SvgE.on "mousemove" (decodeMousePosition Drag)
         , SvgE.on "mouseup" (Decode.succeed EndDrag)
         , SvgE.on "mouseleave" (Decode.succeed EndDrag)
+        , Html.Events.preventDefaultOn "wheel" decodeWheelEvent
         ]
         [ -- Grid for reference
           viewGrid
@@ -1882,6 +2040,16 @@ viewCanvas model =
 decodeMousePosition : (Float -> Float -> msg) -> Decode.Decoder msg
 decodeMousePosition toMsg =
     Decode.map2 toMsg
+        (Decode.field "offsetX" Decode.float)
+        (Decode.field "offsetY" Decode.float)
+
+
+{-| Decode wheel event for zoom. Returns (msg, preventDefault=True).
+-}
+decodeWheelEvent : Decode.Decoder ( Msg, Bool )
+decodeWheelEvent =
+    Decode.map3 (\dy mx my -> ( Zoom dy mx my, True ))
+        (Decode.field "deltaY" Decode.float)
         (Decode.field "offsetX" Decode.float)
         (Decode.field "offsetY" Decode.float)
 
