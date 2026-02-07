@@ -3,9 +3,11 @@ module Train.View exposing (viewTrains)
 {-| Train rendering as top-down SVG.
 -}
 
+import Json.Decode as Decode
 import Planning.Types exposing (StockItem, StockType(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
+import Svg.Events as SvgE
 import Html.Attributes
 import Train.Route as Route
 import Train.Stock exposing (couplerGap, stockLength)
@@ -15,15 +17,15 @@ import Util.Vec2 exposing (Vec2)
 
 {-| Render all active trains.
 -}
-viewTrains : List ActiveTrain -> Svg msg
-viewTrains trains =
-    Svg.g [] (List.map viewTrain trains)
+viewTrains : (Int -> msg) -> List ActiveTrain -> Svg msg
+viewTrains onTrainClick trains =
+    Svg.g [] (List.map (viewTrain onTrainClick) trains)
 
 
 {-| Render a single train.
 -}
-viewTrain : ActiveTrain -> Svg msg
-viewTrain train =
+viewTrain : (Int -> msg) -> ActiveTrain -> Svg msg
+viewTrain onTrainClick train =
     let
         carPositions =
             positionCars train
@@ -36,7 +38,7 @@ viewTrain train =
                     car.worldPosition
                         |> Maybe.map
                             (\pos ->
-                                viewTrainCar pos.position pos.orientation car.stockType
+                                viewTrainCar onTrainClick train.id pos.position pos.orientation car.stockType
                             )
 
                 else
@@ -108,8 +110,8 @@ stockTypeTestId stockType =
 
 {-| Render a single car at its position on the track.
 -}
-viewTrainCar : Vec2 -> Float -> StockType -> Svg msg
-viewTrainCar position orientation stockType =
+viewTrainCar : (Int -> msg) -> Int -> Vec2 -> Float -> StockType -> Svg msg
+viewTrainCar onTrainClick trainId position orientation stockType =
     let
         -- Convert from custom system (0° = North, CW) to SVG (0° = East, CCW)
         -- Formula: svgAngle = 90° - customAngle (in radians: pi/2 - orientation)
@@ -117,11 +119,12 @@ viewTrainCar position orientation stockType =
             (pi / 2 - orientation) * 180 / pi
 
         -- SVG transform: translate to position, then rotate
+        -- World coordinates match SVG: +Y = down (south)
         transform =
             "translate("
                 ++ String.fromFloat position.x
                 ++ ","
-                ++ String.fromFloat -position.y
+                ++ String.fromFloat position.y
                 ++ ") rotate("
                 ++ String.fromFloat rotationDeg
                 ++ ")"
@@ -129,6 +132,9 @@ viewTrainCar position orientation stockType =
     Svg.g
         [ SvgA.transform transform
         , Html.Attributes.attribute "data-testid" ("train-car-" ++ stockTypeTestId stockType)
+        , SvgE.onClick (onTrainClick trainId)
+        , SvgA.style "cursor: pointer"
+        , SvgE.stopPropagationOn "mousedown" (Decode.succeed ( onTrainClick trainId, True ))
         ]
         (case stockType of
             Flatbed ->

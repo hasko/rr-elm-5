@@ -45,6 +45,7 @@ type StockType
 type alias StockItem =
     { id : Int
     , stockType : StockType
+    , reversed : Bool
     }
 
 
@@ -126,16 +127,16 @@ initPlanningState =
     , inventories =
         [ { spawnPointId = EastStation
           , availableStock =
-                [ { id = 1, stockType = Locomotive }
-                , { id = 2, stockType = PassengerCar }
-                , { id = 3, stockType = Flatbed }
+                [ { id = 1, stockType = Locomotive, reversed = False }
+                , { id = 2, stockType = PassengerCar, reversed = False }
+                , { id = 3, stockType = Flatbed, reversed = False }
                 ]
           }
         , { spawnPointId = WestStation
           , availableStock =
-                [ { id = 4, stockType = Locomotive }
-                , { id = 5, stockType = Boxcar }
-                , { id = 6, stockType = Boxcar }
+                [ { id = 4, stockType = Locomotive, reversed = False }
+                , { id = 5, stockType = Boxcar, reversed = False }
+                , { id = 6, stockType = Boxcar, reversed = False }
                 ]
           }
         ]

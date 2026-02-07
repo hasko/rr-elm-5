@@ -478,12 +478,18 @@ interpolateGeometry t geom =
                         (center.x + radius * cos currentAngle)
                         (center.y + radius * sin currentAngle)
 
+                -- Convert tangent direction from standard math angle to custom
+                -- angle system (0° = North, CW positive).
+                -- For positive sweep (CW), tangent = (-sin θ, cos θ),
+                --   custom angle = atan2(-sin θ, -cos θ) = θ + pi
+                -- For negative sweep (CCW), tangent = (sin θ, -cos θ),
+                --   custom angle = atan2(sin θ, cos θ) = θ
                 orientation =
                     if sweep >= 0 then
-                        currentAngle + pi / 2
+                        currentAngle + pi
 
                     else
-                        currentAngle - pi / 2
+                        currentAngle
             in
             { position = position
             , orientation = Element.normalizeAngle orientation

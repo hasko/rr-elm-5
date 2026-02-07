@@ -210,7 +210,7 @@ renderBallast segment =
     Svg.path
         [ SvgA.d (renderSegmentToPath segment)
         , SvgA.stroke "#8b7355"
-        , SvgA.strokeWidth "12"
+        , SvgA.strokeWidth "5"
         , SvgA.strokeLinecap "round"
         , SvgA.fill "none"
         ]
@@ -284,7 +284,7 @@ renderStraightRails start end =
           Svg.path
             [ SvgA.d leftPathStr
             , SvgA.stroke "#555"
-            , SvgA.strokeWidth "1.5"
+            , SvgA.strokeWidth "0.125"
             , SvgA.fill "none"
             ]
             []
@@ -293,7 +293,7 @@ renderStraightRails start end =
         , Svg.path
             [ SvgA.d rightPathStr
             , SvgA.stroke "#555"
-            , SvgA.strokeWidth "1.5"
+            , SvgA.strokeWidth "0.125"
             , SvgA.fill "none"
             ]
             []
@@ -424,14 +424,14 @@ renderArcRails arc =
         [ Svg.path
             [ SvgA.d innerPath
             , SvgA.stroke "#555"
-            , SvgA.strokeWidth "1.5"
+            , SvgA.strokeWidth "0.125"
             , SvgA.fill "none"
             ]
             []
         , Svg.path
             [ SvgA.d outerPath
             , SvgA.stroke "#555"
-            , SvgA.strokeWidth "1.5"
+            , SvgA.strokeWidth "0.125"
             , SvgA.fill "none"
             ]
             []

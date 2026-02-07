@@ -118,6 +118,7 @@ encodeStockItem item =
     Encode.object
         [ ( "id", Encode.int item.id )
         , ( "stockType", encodeStockType item.stockType )
+        , ( "reversed", Encode.bool item.reversed )
         ]
 
 
@@ -327,9 +328,14 @@ decodeInventory =
 
 decodeStockItem : Decoder StockItem
 decodeStockItem =
-    Decode.map2 StockItem
+    Decode.map3 StockItem
         (Decode.field "id" Decode.int)
         (Decode.field "stockType" decodeStockType)
+        (Decode.oneOf
+            [ Decode.field "reversed" Decode.bool
+            , Decode.succeed False
+            ]
+        )
 
 
 decodeStockType : Decoder StockType

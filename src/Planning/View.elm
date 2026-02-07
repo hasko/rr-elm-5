@@ -34,6 +34,7 @@ viewPlanningPanel :
     , onInsertInConsist : Int -> msg
     , onRemoveFromConsist : Int -> msg
     , onClearConsist : msg
+    , onFlipLoco : Int -> msg
     , onSetHour : Int -> msg
     , onSetMinute : Int -> msg
     , onSetDay : Int -> msg
@@ -59,7 +60,7 @@ viewPlanningPanel config =
         , viewSpawnPointSelector config.state.selectedSpawnPoint config.onSelectSpawnPoint
         , viewScheduledTrains config.state config.onRemoveTrain config.onSelectTrain config.onOpenProgrammer
         , viewAvailableStock config.state config.onSelectStock
-        , viewConsistBuilder config.state.consistBuilder config.onAddToFront config.onAddToBack config.onInsertInConsist config.onRemoveFromConsist config.onClearConsist
+        , viewConsistBuilder config.state.consistBuilder config.state.selectedSpawnPoint config.onAddToFront config.onAddToBack config.onInsertInConsist config.onRemoveFromConsist config.onClearConsist config.onFlipLoco
         , viewScheduleControls config.state config.onSetDay config.onSetHour config.onSetMinute config.onSchedule config.onOpenProgrammer
         ]
 
@@ -443,50 +444,53 @@ viewStockSideProfile stockType =
         , SvgA.height "30"
         , SvgA.viewBox "0 0 60 30"
         ]
-        (case stockType of
-            Locomotive ->
-                [ Svg.rect [ SvgA.x "5", SvgA.y "5", SvgA.width "50", SvgA.height "18", SvgA.fill "#4a6a8a", SvgA.rx "2" ] []
-                , Svg.rect [ SvgA.x "40", SvgA.y "2", SvgA.width "12", SvgA.height "8", SvgA.fill "#3a5a7a" ] []
-                , Svg.circle [ SvgA.cx "15", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
-                , Svg.circle [ SvgA.cx "45", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
-                ]
+        (viewStockSideProfileShapes stockType)
 
-            PassengerCar ->
-                [ Svg.rect [ SvgA.x "2", SvgA.y "6", SvgA.width "56", SvgA.height "14", SvgA.fill "#8a6a4a", SvgA.rx "2" ] []
-                , Svg.rect [ SvgA.x "8", SvgA.y "8", SvgA.width "8", SvgA.height "8", SvgA.fill "#aaa" ] []
-                , Svg.rect [ SvgA.x "26", SvgA.y "8", SvgA.width "8", SvgA.height "8", SvgA.fill "#aaa" ] []
-                , Svg.rect [ SvgA.x "44", SvgA.y "8", SvgA.width "8", SvgA.height "8", SvgA.fill "#aaa" ] []
-                , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
-                , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
-                ]
 
-            Flatbed ->
-                [ -- Deck
-                  Svg.rect [ SvgA.x "2", SvgA.y "14", SvgA.width "56", SvgA.height "6", SvgA.fill "#6a5a4a" ] []
+viewStockSideProfileShapes : StockType -> List (Svg msg)
+viewStockSideProfileShapes stockType =
+    case stockType of
+        Locomotive ->
+            [ Svg.rect [ SvgA.x "5", SvgA.y "5", SvgA.width "50", SvgA.height "18", SvgA.fill "#4a6a8a", SvgA.rx "2" ] []
+            , Svg.rect [ SvgA.x "40", SvgA.y "2", SvgA.width "12", SvgA.height "8", SvgA.fill "#3a5a7a" ] []
+            , Svg.circle [ SvgA.cx "15", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+            , Svg.circle [ SvgA.cx "45", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+            ]
 
-                -- Rungen (stakes) - 8 equally spaced, outermost at corners
-                -- Deck spans x=2 to x=58, stakes at: 2, 10, 18, 26, 34, 42, 50, 58 (spacing = 8)
-                , Svg.rect [ SvgA.x "2", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
-                , Svg.rect [ SvgA.x "10", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
-                , Svg.rect [ SvgA.x "18", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
-                , Svg.rect [ SvgA.x "26", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
-                , Svg.rect [ SvgA.x "34", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
-                , Svg.rect [ SvgA.x "42", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
-                , Svg.rect [ SvgA.x "50", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
-                , Svg.rect [ SvgA.x "56", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+        PassengerCar ->
+            [ Svg.rect [ SvgA.x "2", SvgA.y "6", SvgA.width "56", SvgA.height "14", SvgA.fill "#8a6a4a", SvgA.rx "2" ] []
+            , Svg.rect [ SvgA.x "8", SvgA.y "8", SvgA.width "8", SvgA.height "8", SvgA.fill "#aaa" ] []
+            , Svg.rect [ SvgA.x "26", SvgA.y "8", SvgA.width "8", SvgA.height "8", SvgA.fill "#aaa" ] []
+            , Svg.rect [ SvgA.x "44", SvgA.y "8", SvgA.width "8", SvgA.height "8", SvgA.fill "#aaa" ] []
+            , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+            , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+            ]
 
-                -- Wheels
-                , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
-                , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
-                ]
+        Flatbed ->
+            [ -- Deck
+              Svg.rect [ SvgA.x "2", SvgA.y "14", SvgA.width "56", SvgA.height "6", SvgA.fill "#6a5a4a" ] []
 
-            Boxcar ->
-                [ Svg.rect [ SvgA.x "2", SvgA.y "4", SvgA.width "56", SvgA.height "16", SvgA.fill "#8a4a4a", SvgA.rx "2" ] []
-                , Svg.rect [ SvgA.x "22", SvgA.y "6", SvgA.width "16", SvgA.height "12", SvgA.fill "#6a3a3a" ] []
-                , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
-                , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
-                ]
-        )
+            -- Rungen (stakes) - 8 equally spaced, outermost at corners
+            , Svg.rect [ SvgA.x "2", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+            , Svg.rect [ SvgA.x "10", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+            , Svg.rect [ SvgA.x "18", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+            , Svg.rect [ SvgA.x "26", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+            , Svg.rect [ SvgA.x "34", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+            , Svg.rect [ SvgA.x "42", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+            , Svg.rect [ SvgA.x "50", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+            , Svg.rect [ SvgA.x "56", SvgA.y "4", SvgA.width "2", SvgA.height "10", SvgA.fill "#4a4a4a" ] []
+
+            -- Wheels
+            , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+            , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+            ]
+
+        Boxcar ->
+            [ Svg.rect [ SvgA.x "2", SvgA.y "4", SvgA.width "56", SvgA.height "16", SvgA.fill "#8a4a4a", SvgA.rx "2" ] []
+            , Svg.rect [ SvgA.x "22", SvgA.y "6", SvgA.width "16", SvgA.height "12", SvgA.fill "#6a3a3a" ] []
+            , Svg.circle [ SvgA.cx "12", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+            , Svg.circle [ SvgA.cx "48", SvgA.cy "26", SvgA.r "4", SvgA.fill "#333" ] []
+            ]
 
 
 getItemAt : Int -> List a -> Maybe a
@@ -496,8 +500,8 @@ getItemAt index list =
         |> List.head
 
 
-viewConsistBuilder : ConsistBuilder -> msg -> msg -> (Int -> msg) -> (Int -> msg) -> msg -> Html msg
-viewConsistBuilder builder onAddFront onAddBack onInsert onRemove onClear =
+viewConsistBuilder : ConsistBuilder -> SpawnPointId -> msg -> msg -> (Int -> msg) -> (Int -> msg) -> msg -> (Int -> msg) -> Html msg
+viewConsistBuilder builder selectedSpawnPoint onAddFront onAddBack onInsert onRemove onClear onFlipLoco =
     let
         hasSelection =
             builder.selectedStock /= Nothing
@@ -520,55 +524,76 @@ viewConsistBuilder builder onAddFront onAddBack onInsert onRemove onClear =
                 , style "color" "#888"
                 ]
                 [ text "CONSIST BUILDER" ]
-            , button
-                [ style "background" "#444"
-                , style "border" "none"
-                , style "color" "#e0e0e0"
-                , style "padding" "4px 8px"
-                , style "border-radius" "2px"
-                , style "cursor" "pointer"
-                , style "font-size" "11px"
-                , onClick onClear
+            , div [ style "display" "flex", style "gap" "4px" ]
+                [ button
+                    [ style "background" "#444"
+                    , style "border" "none"
+                    , style "color" "#e0e0e0"
+                    , style "padding" "4px 8px"
+                    , style "border-radius" "2px"
+                    , style "cursor" "pointer"
+                    , style "font-size" "11px"
+                    , onClick onClear
+                    ]
+                    [ text "Clear" ]
                 ]
-                [ text "Clear" ]
             ]
         , div
-            [ attribute "data-testid" "consist-area"
-            , style "display" "flex"
-            , style "gap" "4px"
-            , style "padding" "8px"
-            , style "background" "#151520"
-            , style "border-radius" "4px"
-            , style "min-height" "50px"
+            [ style "display" "flex"
             , style "align-items" "center"
-            , style "justify-content"
+            , style "gap" "4px"
+            ]
+            [ case selectedSpawnPoint of
+                EastStation ->
+                    viewDestinationLabel (destinationLabel selectedSpawnPoint)
+
+                WestStation ->
+                    text ""
+            , div
+                [ attribute "data-testid" "consist-area"
+                , style "display" "flex"
+                , style "gap" "4px"
+                , style "padding" "8px"
+                , style "background" "#151520"
+                , style "border-radius" "4px"
+                , style "min-height" "50px"
+                , style "align-items" "center"
+                , style "flex" "1"
+                , style "justify-content"
+                    (if List.isEmpty items then
+                        "center"
+
+                     else
+                        "flex-start"
+                    )
+                ]
                 (if List.isEmpty items then
-                    "center"
+                    -- Single centered + button when empty
+                    [ viewAddButton hasSelection onAddBack ]
 
                  else
-                    "flex-start"
+                    -- [+] [item] [+] [item] [+] ... [+]
+                    [ viewAddButton hasSelection onAddFront ]
+                        ++ List.concatMap
+                            (\index ->
+                                case getItemAt index items of
+                                    Just item ->
+                                        [ viewConsistItem onRemove onFlipLoco index item
+                                        , viewAddButton hasSelection (onInsert (index + 1))
+                                        ]
+
+                                    Nothing ->
+                                        []
+                            )
+                            (List.range 0 (List.length items - 1))
                 )
+            , case selectedSpawnPoint of
+                WestStation ->
+                    viewDestinationLabel (destinationLabel selectedSpawnPoint)
+
+                EastStation ->
+                    text ""
             ]
-            (if List.isEmpty items then
-                -- Single centered + button when empty
-                [ viewAddButton hasSelection onAddBack ]
-
-             else
-                -- [+] [item] [+] [item] [+] ... [+]
-                [ viewAddButton hasSelection onAddFront ]
-                    ++ List.concatMap
-                        (\index ->
-                            case getItemAt index items of
-                                Just item ->
-                                    [ viewConsistItem onRemove index item
-                                    , viewAddButton hasSelection (onInsert (index + 1))
-                                    ]
-
-                                Nothing ->
-                                    []
-                        )
-                        (List.range 0 (List.length items - 1))
-            )
         , case builder.selectedStock of
             Just stock ->
                 div
@@ -586,6 +611,34 @@ viewConsistBuilder builder onAddFront onAddBack onInsert onRemove onClear =
                     ]
                     [ text "Select stock from above to add to consist" ]
         ]
+
+
+{-| Destination label for the consist builder.
+Shows "towards [Station]" on the side the train is heading.
+-}
+destinationLabel : SpawnPointId -> String
+destinationLabel spawnPoint =
+    case spawnPoint of
+        EastStation ->
+            "towards West Station"
+
+        WestStation ->
+            "towards East Station"
+
+
+{-| Render a destination label flanking the consist area.
+-}
+viewDestinationLabel : String -> Html msg
+viewDestinationLabel labelText =
+    div
+        [ style "font-size" "10px"
+        , style "color" "#8a8aaa"
+        , style "text-align" "center"
+        , style "max-width" "50px"
+        , style "flex-shrink" "0"
+        , style "line-height" "1.2"
+        ]
+        [ text labelText ]
 
 
 viewAddButton : Bool -> msg -> Html msg
@@ -630,8 +683,44 @@ viewAddButton enabled onAdd =
         ]
 
 
-viewConsistItem : (Int -> msg) -> Int -> StockItem -> Html msg
-viewConsistItem onRemove index item =
+viewConsistItem : (Int -> msg) -> (Int -> msg) -> Int -> StockItem -> Html msg
+viewConsistItem onRemove onFlipLoco index item =
+    let
+        isLoco =
+            item.stockType == Locomotive
+
+        flipButton =
+            if isLoco then
+                button
+                    [ style "position" "absolute"
+                    , style "bottom" "-6px"
+                    , style "right" "-6px"
+                    , style "width" "18px"
+                    , style "height" "18px"
+                    , style "border-radius" "50%"
+                    , style "background" "#4a4a6a"
+                    , style "border" "none"
+                    , style "color" "#e0e0e0"
+                    , style "font-size" "10px"
+                    , style "cursor" "pointer"
+                    , style "display" "flex"
+                    , style "align-items" "center"
+                    , style "justify-content" "center"
+                    , style "padding" "0"
+                    , onClick (onFlipLoco index)
+                    ]
+                    [ text "\u{21C4}" ]
+
+            else
+                text ""
+
+        svgTransform =
+            if item.reversed then
+                "scale(-1,1)"
+
+            else
+                ""
+    in
     div
         [ attribute "data-testid" ("consist-item-" ++ stockTypeTestId item.stockType)
         , style "position" "relative"
@@ -647,7 +736,15 @@ viewConsistItem onRemove index item =
             , style "justify-content" "center"
             , style "background" "#252540"
             ]
-            [ viewStockSideProfile item.stockType ]
+            [ Svg.svg
+                [ SvgA.width "60"
+                , SvgA.height "30"
+                , SvgA.viewBox "0 0 60 30"
+                ]
+                [ Svg.g [ SvgA.transform ("translate(30,15) " ++ svgTransform ++ " translate(-30,-15)") ]
+                    (viewStockSideProfileShapes item.stockType)
+                ]
+            ]
         , button
             [ style "position" "absolute"
             , style "top" "-6px"
@@ -667,6 +764,7 @@ viewConsistItem onRemove index item =
             , onClick (onRemove index)
             ]
             [ text "X" ]
+        , flipButton
         ]
 
 

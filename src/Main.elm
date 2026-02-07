@@ -107,6 +107,9 @@ type alias Model =
     , activeTrains : List ActiveTrain
     , spawnedTrainIds : Set Int
     , timeMultiplier : Float
+
+    -- Train info panel
+    , selectedTrainId : Maybe Int
     }
 
 
@@ -144,6 +147,7 @@ defaultModel =
     , activeTrains = []
     , spawnedTrainIds = Set.empty
     , timeMultiplier = 1.0
+    , selectedTrainId = Nothing
     }
 
 
@@ -216,6 +220,7 @@ restoreModel saved =
     , activeTrains = activeTrains
     , spawnedTrainIds = Set.fromList saved.spawnedTrainIds
     , timeMultiplier = saved.timeMultiplier
+    , selectedTrainId = Nothing
     }
 
 
@@ -246,6 +251,7 @@ type Msg
     | InsertInConsist Int -- Insert selected stock at index
     | RemoveFromConsist Int -- Remove item at index
     | ClearConsistBuilder
+    | FlipLocoInConsist Int -- Toggle reversed flag on loco at index
     | SetTimePickerHour Int
     | SetTimePickerMinute Int
     | SetTimePickerDay Int
@@ -261,6 +267,9 @@ type Msg
     | MoveOrderDown Int
     | SelectProgramOrder Int
     | SaveProgram
+      -- Train info panel messages
+    | TrainClicked Int
+    | DeselectTrain
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -362,6 +371,19 @@ update msg model =
                     newSpawnedIds =
                         Set.union model.spawnedTrainIds
                             (Set.fromList (List.map .id newTrains))
+
+                    -- Auto-deselect if selected train despawned
+                    newSelectedTrainId =
+                        case model.selectedTrainId of
+                            Just id ->
+                                if List.any (\t -> t.id == id) allTrains then
+                                    Just id
+
+                                else
+                                    Nothing
+
+                            Nothing ->
+                                Nothing
                 in
                 ( { model
                     | gameTime = { elapsedSeconds = newElapsed }
@@ -369,6 +391,7 @@ update msg model =
                     , spawnedTrainIds = newSpawnedIds
                     , planningState = { planning | inventories = newInventories }
                     , turnoutState = newTurnoutState
+                    , selectedTrainId = newSelectedTrainId
                   }
                 , Cmd.none
                 )
@@ -562,6 +585,32 @@ update msg model =
             , Cmd.none
             )
 
+        FlipLocoInConsist index ->
+            let
+                planning =
+                    model.planningState
+
+                builder =
+                    planning.consistBuilder
+
+                newItems =
+                    List.indexedMap
+                        (\i item ->
+                            if i == index && item.stockType == Locomotive then
+                                { item | reversed = not item.reversed }
+
+                            else
+                                item
+                        )
+                        builder.items
+
+                newBuilder =
+                    { builder | items = newItems }
+            in
+            ( { model | planningState = { planning | consistBuilder = newBuilder } }
+            , Cmd.none
+            )
+
         SetTimePickerHour hour ->
             let
                 planning =
@@ -621,6 +670,12 @@ update msg model =
 
         SaveProgram ->
             ( updateSaveProgram model, Cmd.none )
+
+        TrainClicked trainId ->
+            ( { model | selectedTrainId = Just trainId }, Cmd.none )
+
+        DeselectTrain ->
+            ( { model | selectedTrainId = Nothing }, Cmd.none )
 
         SaveTick _ ->
             ( model, saveToStorage (Encode.encode 0 (extractSavedState model)) )
@@ -1417,7 +1472,19 @@ viewMainContent model =
                 ]
 
         _ ->
-            viewCanvas model
+            case model.selectedTrainId of
+                Just trainId ->
+                    div
+                        [ style "display" "flex"
+                        , style "flex" "1"
+                        , style "overflow" "hidden"
+                        ]
+                        [ div [ style "flex" "1" ] [ viewCanvas model ]
+                        , viewTrainInfoPanel model trainId
+                        ]
+
+                Nothing ->
+                    viewCanvas model
 
 
 viewRightPanel : Model -> Html Msg
@@ -1434,6 +1501,7 @@ viewRightPanel model =
                 , onInsertInConsist = InsertInConsist
                 , onRemoveFromConsist = RemoveFromConsist
                 , onClearConsist = ClearConsistBuilder
+                , onFlipLoco = FlipLocoInConsist
                 , onSetHour = SetTimePickerHour
                 , onSetMinute = SetTimePickerMinute
                 , onSetDay = SetTimePickerDay
@@ -1462,6 +1530,121 @@ viewRightPanel model =
                 Nothing ->
                     -- Should not happen, but fallback to planning view
                     text "Error: No programmer state"
+
+
+viewTrainInfoPanel : Model -> Int -> Html Msg
+viewTrainInfoPanel model trainId =
+    case List.filter (\t -> t.id == trainId) model.activeTrains |> List.head of
+        Just train ->
+            let
+                speedKmh =
+                    train.speed * 3.6
+
+                stateText =
+                    case train.trainState of
+                        Executing ->
+                            "Executing"
+
+                        WaitingForOrders ->
+                            "Waiting for Orders"
+
+                        Stopped reason ->
+                            "Stopped: " ++ reason
+
+                currentOrder =
+                    if List.isEmpty train.program then
+                        "No program"
+
+                    else
+                        case List.drop train.programCounter train.program |> List.head of
+                            Just order ->
+                                String.fromInt (train.programCounter + 1)
+                                    ++ ". "
+                                    ++ Programmer.orderDescription order
+
+                            Nothing ->
+                                "Program complete"
+
+                infoRow labelText valueText =
+                    div [ style "margin-bottom" "12px" ]
+                        [ div
+                            [ style "font-size" "12px"
+                            , style "color" "#888"
+                            , style "margin-bottom" "2px"
+                            ]
+                            [ text labelText ]
+                        , div [ style "font-size" "14px" ] [ text valueText ]
+                        ]
+            in
+            div
+                [ style "width" "400px"
+                , style "background" "#1a1a2e"
+                , style "border-left" "2px solid #333"
+                , style "display" "flex"
+                , style "flex-direction" "column"
+                , style "font-family" "sans-serif"
+                , style "color" "#e0e0e0"
+                , style "overflow-y" "auto"
+                ]
+                [ -- Header
+                  div
+                    [ style "display" "flex"
+                    , style "justify-content" "space-between"
+                    , style "align-items" "center"
+                    , style "padding" "12px 16px"
+                    , style "background" "#252540"
+                    , style "border-bottom" "1px solid #333"
+                    ]
+                    [ span
+                        [ style "font-weight" "bold"
+                        , style "font-size" "16px"
+                        ]
+                        [ text ("Train #" ++ String.fromInt trainId) ]
+                    , button
+                        [ style "background" "#3a3a5a"
+                        , style "border" "none"
+                        , style "color" "#e0e0e0"
+                        , style "padding" "6px 12px"
+                        , style "border-radius" "4px"
+                        , style "cursor" "pointer"
+                        , style "font-size" "14px"
+                        , onClick DeselectTrain
+                        ]
+                        [ text "X" ]
+                    ]
+
+                -- Info content
+                , div [ style "padding" "16px" ]
+                    [ infoRow "SPEED" (String.fromFloat (toFloat (round (speedKmh * 10)) / 10) ++ " km/h")
+                    , infoRow "STATE" stateText
+                    , infoRow "CURRENT ORDER" currentOrder
+                    , div [ style "margin-bottom" "12px" ]
+                        [ div
+                            [ style "font-size" "12px"
+                            , style "color" "#888"
+                            , style "margin-bottom" "4px"
+                            ]
+                            [ text "CONSIST" ]
+                        , div []
+                            (List.indexedMap
+                                (\i item ->
+                                    div
+                                        [ style "padding" "4px 8px"
+                                        , style "background" "#252540"
+                                        , style "border-radius" "4px"
+                                        , style "margin-bottom" "2px"
+                                        , style "font-size" "14px"
+                                        ]
+                                        [ text (String.fromInt (i + 1) ++ ". " ++ Planning.stockTypeName item.stockType) ]
+                                )
+                                train.consist
+                            )
+                        ]
+                    ]
+                ]
+
+        Nothing ->
+            text ""
 
 
 viewHeader : Model -> Html Msg
@@ -1671,7 +1854,7 @@ viewCanvas model =
             }
 
         -- Active trains
-        , TrainView.viewTrains model.activeTrains
+        , TrainView.viewTrains TrainClicked model.activeTrains
 
         -- Tooltip (rendered last so it's on top)
         , tooltipView
