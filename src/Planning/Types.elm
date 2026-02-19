@@ -3,7 +3,6 @@ module Planning.Types exposing
     , StockType(..)
     , StockItem
     , Consist
-    , DepartureTime
     , ScheduledTrain
     , SpawnPointInventory
     , ConsistBuilder
@@ -16,6 +15,7 @@ module Planning.Types exposing
     )
 
 import Programmer.Types exposing (Program, ProgrammerState, emptyProgram)
+import Util.GameTime exposing (GameTime)
 
 
 {-| What the right panel is showing.
@@ -57,21 +57,12 @@ type alias Consist =
     List StockItem
 
 
-{-| Departure time within the game week.
--}
-type alias DepartureTime =
-    { day : Int -- 0-4 (Mon-Fri)
-    , hour : Int -- 0-23
-    , minute : Int -- 0-59
-    }
-
-
 {-| A scheduled train with spawn point, time, and consist.
 -}
 type alias ScheduledTrain =
     { id : Int
     , spawnPoint : SpawnPointId
-    , departureTime : DepartureTime
+    , departureTime : GameTime
     , consist : Consist
     , program : Program
     }

@@ -33,6 +33,7 @@ import Train.Route as Route
 import Train.Spawn as Spawn
 import Train.Types exposing (ActiveTrain, Effect(..), TrainState(..))
 import Train.View as TrainView
+import Util.GameTime as GameTime exposing (GameTime)
 import Util.Vec2 as Vec2 exposing (Vec2)
 
 
@@ -68,11 +69,6 @@ type GameMode
     = Planning
     | Running
     | Paused
-
-
-type alias GameTime =
-    { elapsedSeconds : Float -- Total simulation time in seconds
-    }
 
 
 type alias Camera =
@@ -134,7 +130,7 @@ init maybeJson =
 defaultModel : Model
 defaultModel =
     { mode = Planning
-    , gameTime = { elapsedSeconds = 6 * 60 * 60 } -- Start at 06:00
+    , gameTime = GameTime.fromHourMinute 6 0
     , camera =
         { center = Vec2.vec2 -50 60
         , zoom = 2.0 -- 2 pixels per meter
@@ -207,7 +203,7 @@ restoreModel saved =
             }
     in
     { mode = mode
-    , gameTime = { elapsedSeconds = saved.gameTime }
+    , gameTime = saved.gameTime
     , camera =
         { center = Vec2.vec2 saved.cameraX saved.cameraY
         , zoom = saved.cameraZoom
@@ -293,7 +289,7 @@ update msg model =
 
                     -- Advance simulation time
                     newElapsed =
-                        model.gameTime.elapsedSeconds + scaledDeltaSeconds
+                        model.gameTime + scaledDeltaSeconds
 
                     -- Spawn new trains
                     newTrains =
@@ -388,7 +384,7 @@ update msg model =
                                 Nothing
                 in
                 ( { model
-                    | gameTime = { elapsedSeconds = newElapsed }
+                    | gameTime = newElapsed
                     , activeTrains = allTrains
                     , spawnedTrainIds = newSpawnedIds
                     , planningState = { planning | inventories = newInventories }
@@ -871,7 +867,7 @@ extractSavedState model =
 
         savedState : Storage.SavedState
         savedState =
-            { gameTime = model.gameTime.elapsedSeconds
+            { gameTime = model.gameTime
             , mode = modeString
             , turnoutState = turnoutString
             , activeTrains = savedTrains
@@ -1148,11 +1144,7 @@ updateScheduleTrain model =
                     updatedTrain =
                         { id = trainId
                         , spawnPoint = planning.selectedSpawnPoint
-                        , departureTime =
-                            { day = planning.timePickerDay
-                            , hour = planning.timePickerHour
-                            , minute = planning.timePickerMinute
-                            }
+                        , departureTime = GameTime.fromDayHourMinute planning.timePickerDay planning.timePickerHour planning.timePickerMinute
                         , consist = consist
                         , program = planning.editingTrainProgram
                         }
@@ -1173,11 +1165,7 @@ updateScheduleTrain model =
                     newTrain =
                         { id = planning.nextTrainId
                         , spawnPoint = planning.selectedSpawnPoint
-                        , departureTime =
-                            { day = planning.timePickerDay
-                            , hour = planning.timePickerHour
-                            , minute = planning.timePickerMinute
-                            }
+                        , departureTime = GameTime.fromDayHourMinute planning.timePickerDay planning.timePickerHour planning.timePickerMinute
                         , consist = consist
                         , program = Programmer.emptyProgram
                         }
@@ -1229,6 +1217,9 @@ updateSelectScheduledTrain trainId model =
                     { items = train.consist
                     , selectedStock = Nothing
                     }
+
+                ( pickerDay, pickerHour, pickerMinute ) =
+                    GameTime.toDayHourMinute train.departureTime
             in
             { model
                 | planningState =
@@ -1237,9 +1228,9 @@ updateSelectScheduledTrain trainId model =
                         , scheduledTrains = newTrains
                         , inventories = newInventories
                         , consistBuilder = newBuilder
-                        , timePickerDay = train.departureTime.day
-                        , timePickerHour = train.departureTime.hour
-                        , timePickerMinute = train.departureTime.minute
+                        , timePickerDay = pickerDay
+                        , timePickerHour = pickerHour
+                        , timePickerMinute = pickerMinute
                         , editingTrainId = Just trainId
                         , editingTrainProgram = train.program
                     }
@@ -1346,11 +1337,7 @@ updateSaveProgram model =
                 savedTrain =
                     { id = trainId
                     , spawnPoint = planning.selectedSpawnPoint
-                    , departureTime =
-                        { day = planning.timePickerDay
-                        , hour = planning.timePickerHour
-                        , minute = planning.timePickerMinute
-                        }
+                    , departureTime = GameTime.fromDayHourMinute planning.timePickerDay planning.timePickerHour planning.timePickerMinute
                     , consist = planning.consistBuilder.items
                     , program = progState.program
                     }
@@ -1843,28 +1830,16 @@ viewGameTime : GameTime -> Html Msg
 viewGameTime time =
     let
         totalSeconds =
-            floor time.elapsedSeconds
-
-        hours =
-            modBy 24 (totalSeconds // 3600)
-
-        minutes =
-            modBy 60 (totalSeconds // 60)
+            floor time
 
         seconds =
             modBy 60 totalSeconds
-
-        hourStr =
-            String.padLeft 2 '0' (String.fromInt hours)
-
-        minStr =
-            String.padLeft 2 '0' (String.fromInt minutes)
 
         secStr =
             String.padLeft 2 '0' (String.fromInt seconds)
     in
     div [ Html.Attributes.attribute "data-testid" "game-clock" ]
-        [ text (hourStr ++ ":" ++ minStr)
+        [ text (GameTime.formatTime time)
         , span [ style "font-size" "0.7em", style "opacity" "0.7" ]
             [ text (":" ++ secStr) ]
         ]

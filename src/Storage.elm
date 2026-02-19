@@ -11,7 +11,7 @@ module Storage exposing
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
-import Planning.Types exposing (DepartureTime, ScheduledTrain, SpawnPointId(..), SpawnPointInventory, StockItem, StockType(..))
+import Planning.Types exposing (ScheduledTrain, SpawnPointId(..), SpawnPointInventory, StockItem, StockType(..))
 import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SpotTarget(..), SwitchPosition(..))
 import Sawmill.Layout exposing (SwitchState)
 import Train.Route as Route
@@ -99,7 +99,7 @@ encodeScheduledTrain train =
     Encode.object
         [ ( "id", Encode.int train.id )
         , ( "spawnPoint", encodeSpawnPointId train.spawnPoint )
-        , ( "departureTime", encodeDepartureTime train.departureTime )
+        , ( "departureTime", Encode.float train.departureTime )
         , ( "consist", Encode.list encodeStockItem train.consist )
         , ( "program", Encode.list encodeOrder train.program )
         ]
@@ -149,15 +149,6 @@ encodeSpawnPointId sp =
 
             WestStation ->
                 "WestStation"
-
-
-encodeDepartureTime : DepartureTime -> Encode.Value
-encodeDepartureTime dt =
-    Encode.object
-        [ ( "day", Encode.int dt.day )
-        , ( "hour", Encode.int dt.hour )
-        , ( "minute", Encode.int dt.minute )
-        ]
 
 
 encodeOrder : Order -> Encode.Value
@@ -323,7 +314,7 @@ decodeScheduledTrain =
     Decode.map5 ScheduledTrain
         (Decode.field "id" Decode.int)
         (Decode.field "spawnPoint" decodeSpawnPointId)
-        (Decode.field "departureTime" decodeDepartureTime)
+        (Decode.field "departureTime" Decode.float)
         (Decode.field "consist" (Decode.list decodeStockItem))
         (Decode.field "program" (Decode.list decodeOrder))
 
@@ -390,14 +381,6 @@ decodeSpawnPointId =
                     _ ->
                         Decode.fail ("Unknown spawn point: " ++ s)
             )
-
-
-decodeDepartureTime : Decoder DepartureTime
-decodeDepartureTime =
-    Decode.map3 DepartureTime
-        (Decode.field "day" Decode.int)
-        (Decode.field "hour" Decode.int)
-        (Decode.field "minute" Decode.int)
 
 
 decodeOrder : Decoder Order

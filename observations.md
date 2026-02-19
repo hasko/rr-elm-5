@@ -22,6 +22,7 @@
 - Two fundamental train states: (1) Executing a program, (2) Manually controlled. Under manual control: uncoupling, changing reverser, moving to a reachable spot, and "execute program" are available. While executing a program: only "emergency stop" is available as manual override. Both emergency stop and "driver needing guidance" (program error) transition the train to manual control.
 
 ## Future
+- Decompose Types.elm files (Planning/Types.elm, Programmer/Types.elm, Train/Types.elm) — move types closer to where they're used instead of centralizing them in Types modules.
 - Tracks should be reserved when a train wants to enter them. Signals define blocks.
 - Put rolling stock types into a JSON file, e.g. locos, cars, maybe composite track types like turnouts, crossings with no, single, and double slip, turntables
 - More scenarios. (POSTPONED - do not implement automatically)

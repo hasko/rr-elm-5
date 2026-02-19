@@ -2,6 +2,7 @@ module PlanningTypesTest exposing (..)
 
 import Expect
 import Planning.Types as Planning exposing (..)
+import Util.GameTime as GameTime
 import Test exposing (..)
 
 
@@ -132,16 +133,6 @@ suite =
                     ( item.id, item.stockType )
                         |> Expect.equal ( 42, Locomotive )
             ]
-        , describe "DepartureTime"
-            [ test "can create departure time with day, hour, minute" <|
-                \_ ->
-                    let
-                        time =
-                            { day = 2, hour = 14, minute = 30 }
-                    in
-                    ( time.day, time.hour, time.minute )
-                        |> Expect.equal ( 2, 14, 30 )
-            ]
         , describe "SpawnPointInventory"
             [ test "can create inventory with spawn point and stock list" <|
                 \_ ->
@@ -164,7 +155,7 @@ suite =
                         train =
                             { id = 5
                             , spawnPoint = WestStation
-                            , departureTime = { day = 1, hour = 8, minute = 30 }
+                            , departureTime = GameTime.fromDayHourMinute 1 8 30
                             , consist = [ { id = 10, stockType = Locomotive, reversed = False, provisional = False } ]
                             }
                     in

@@ -3,54 +3,37 @@ module Train.Spawn exposing (checkSpawns)
 {-| Train spawning logic.
 -}
 
-import Planning.Types exposing (DepartureTime, ScheduledTrain, SpawnPointId(..))
+import Planning.Types exposing (ScheduledTrain, SpawnPointId(..))
 import Programmer.Types exposing (ReverserPosition(..))
 import Sawmill.Layout exposing (SwitchState)
 import Set exposing (Set)
 import Train.Route as Route
 import Train.Stock exposing (consistLength, trainSpeed)
 import Train.Types exposing (ActiveTrain, Route, TrainState(..))
+import Util.GameTime exposing (GameTime)
 
 
 {-| Check for trains that should spawn at the current elapsed time.
 Returns list of newly spawned ActiveTrains.
 -}
 checkSpawns :
-    Float
+    GameTime
     -> List ScheduledTrain
     -> Set Int
     -> SwitchState
     -> List ActiveTrain
-checkSpawns elapsedSeconds scheduledTrains spawnedIds switchState =
+checkSpawns currentTime scheduledTrains spawnedIds switchState =
     scheduledTrains
-        |> List.filter (\train -> shouldSpawn train elapsedSeconds spawnedIds)
+        |> List.filter (\train -> shouldSpawn train currentTime spawnedIds)
         |> List.map (createActiveTrain switchState)
 
 
 {-| Check if a scheduled train should spawn.
 -}
-shouldSpawn : ScheduledTrain -> Float -> Set Int -> Bool
-shouldSpawn train elapsedSeconds spawnedIds =
-    let
-        departureSeconds =
-            departureTimeToSeconds train.departureTime
-    in
+shouldSpawn : ScheduledTrain -> GameTime -> Set Int -> Bool
+shouldSpawn train currentTime spawnedIds =
     not (Set.member train.id spawnedIds)
-        && elapsedSeconds >= departureSeconds
-
-
-{-| Convert DepartureTime to seconds from simulation start.
-For MVP, we'll treat day=0, hour=0, minute=0 as t=0.
-So departure at minute=10 means spawn at 10 seconds (we scale 1 minute = 1 second).
-
-TODO: Update Planning/Types to use departureSeconds directly.
-
--}
-departureTimeToSeconds : DepartureTime -> Float
-departureTimeToSeconds { day, hour, minute } =
-    -- For MVP: minute value directly corresponds to seconds
-    -- This lets us test with existing UI (set minute=10 = spawn at 10 seconds)
-    toFloat minute
+        && currentTime >= train.departureTime
 
 
 {-| Create an ActiveTrain from a ScheduledTrain.

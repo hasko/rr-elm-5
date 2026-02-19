@@ -1,7 +1,8 @@
 module TrainTest exposing (..)
 
 import Expect
-import Planning.Types exposing (DepartureTime, ScheduledTrain, SpawnPointId(..), StockItem, StockType(..))
+import Planning.Types exposing (ScheduledTrain, SpawnPointId(..), StockItem, StockType(..))
+import Util.GameTime as GameTime
 import Planning.Helpers exposing (returnStockToInventory)
 import Programmer.Types exposing (Order(..), SpotId(..), SpotTarget(..))
 import Train.Execution as Execution
@@ -214,13 +215,13 @@ spawnTests =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               , spawnPoint = EastStation
-                              , departureTime = { day = 0, hour = 0, minute = 10 }
+                              , departureTime = GameTime.fromDayHourMinute 0 0 10
                               , program = []
                               }
                             ]
 
                         spawned =
-                            checkSpawns 10.0 scheduled Set.empty Normal
+                            checkSpawns 600.0 scheduled Set.empty Normal
                     in
                     List.length spawned
                         |> Expect.equal 1
@@ -231,13 +232,13 @@ spawnTests =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               , spawnPoint = EastStation
-                              , departureTime = { day = 0, hour = 0, minute = 10 }
+                              , departureTime = GameTime.fromDayHourMinute 0 0 10
                               , program = []
                               }
                             ]
 
                         spawned =
-                            checkSpawns 5.0 scheduled Set.empty Normal
+                            checkSpawns 300.0 scheduled Set.empty Normal
                     in
                     List.length spawned
                         |> Expect.equal 0
@@ -248,7 +249,7 @@ spawnTests =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               , spawnPoint = EastStation
-                              , departureTime = { day = 0, hour = 0, minute = 10 }
+                              , departureTime = GameTime.fromDayHourMinute 0 0 10
                               , program = []
                               }
                             ]
@@ -257,7 +258,7 @@ spawnTests =
                             Set.singleton 1
 
                         spawned =
-                            checkSpawns 15.0 scheduled alreadySpawned Normal
+                            checkSpawns 900.0 scheduled alreadySpawned Normal
                     in
                     List.length spawned
                         |> Expect.equal 0
@@ -268,19 +269,19 @@ spawnTests =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               , spawnPoint = EastStation
-                              , departureTime = { day = 0, hour = 0, minute = 5 }
+                              , departureTime = GameTime.fromDayHourMinute 0 0 5
                               , program = []
                               }
                             , { id = 2
                               , consist = [ { id = 2, stockType = Locomotive, reversed = False, provisional = False } ]
                               , spawnPoint = WestStation
-                              , departureTime = { day = 0, hour = 0, minute = 5 }
+                              , departureTime = GameTime.fromDayHourMinute 0 0 5
                               , program = []
                               }
                             ]
 
                         spawned =
-                            checkSpawns 5.0 scheduled Set.empty Normal
+                            checkSpawns 300.0 scheduled Set.empty Normal
                     in
                     List.length spawned
                         |> Expect.equal 2
@@ -291,7 +292,7 @@ spawnTests =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               , spawnPoint = EastStation
-                              , departureTime = { day = 0, hour = 0, minute = 0 }
+                              , departureTime = GameTime.fromDayHourMinute 0 0 0
                               , program = []
                               }
                             ]
@@ -313,7 +314,7 @@ spawnTests =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               , spawnPoint = EastStation
-                              , departureTime = { day = 0, hour = 0, minute = 0 }
+                              , departureTime = GameTime.fromDayHourMinute 0 0 0
                               , program = []
                               }
                             ]
@@ -1158,7 +1159,7 @@ executionTests =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               , spawnPoint = EastStation
-                              , departureTime = { day = 0, hour = 0, minute = 0 }
+                              , departureTime = GameTime.fromDayHourMinute 0 0 0
                               , program = [ Programmer.Types.SetReverser Programmer.Types.Forward ]
                               }
                             ]
@@ -1179,7 +1180,7 @@ executionTests =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               , spawnPoint = EastStation
-                              , departureTime = { day = 0, hour = 0, minute = 0 }
+                              , departureTime = GameTime.fromDayHourMinute 0 0 0
                               , program = []
                               }
                             ]

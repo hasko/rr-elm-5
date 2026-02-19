@@ -18,6 +18,7 @@ import Planning.Types as Planning
         , StockItem
         , StockType(..)
         )
+import Util.GameTime as GameTime
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 
@@ -172,7 +173,7 @@ viewScheduledTrains state onRemove onSelect onOpenProgrammer =
         trainsForSpawnPoint =
             state.scheduledTrains
                 |> List.filter (\t -> t.spawnPoint == state.selectedSpawnPoint)
-                |> List.sortBy (\t -> t.departureTime.day * 1440 + t.departureTime.hour * 60 + t.departureTime.minute)
+                |> List.sortBy .departureTime
     in
     div
         [ style "padding" "12px 16px"
@@ -264,7 +265,7 @@ viewScheduledTrainItem onRemove onSelect onOpenProgrammer editingId train =
         ]
         [ div []
             [ span [ style "font-weight" "bold" ]
-                [ text (formatDepartureTime train.departureTime) ]
+                [ text (GameTime.formatDayTime train.departureTime) ]
             , span [ style "color" "#888", style "margin-left" "8px" ]
                 [ text consistDescription ]
             ]
@@ -282,35 +283,6 @@ viewScheduledTrainItem onRemove onSelect onOpenProgrammer editingId train =
                 [ text "X" ]
             ]
         ]
-
-
-formatDepartureTime : Planning.DepartureTime -> String
-formatDepartureTime time =
-    let
-        dayName =
-            case time.day of
-                0 ->
-                    "Mon"
-
-                1 ->
-                    "Tue"
-
-                2 ->
-                    "Wed"
-
-                3 ->
-                    "Thu"
-
-                _ ->
-                    "Fri"
-
-        hourStr =
-            String.padLeft 2 '0' (String.fromInt time.hour)
-
-        minuteStr =
-            String.padLeft 2 '0' (String.fromInt time.minute)
-    in
-    dayName ++ " " ++ hourStr ++ ":" ++ minuteStr
 
 
 viewAvailableStock : PlanningState -> (StockItem -> msg) -> Html msg

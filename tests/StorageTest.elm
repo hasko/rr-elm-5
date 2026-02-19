@@ -4,6 +4,7 @@ import Expect
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Planning.Types exposing (SpawnPointId(..), StockType(..))
+import Util.GameTime as GameTime
 import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SpotTarget(..), SwitchPosition(..))
 import Storage exposing (SavedState, SavedTrain, decodeSavedState, encodeSavedState)
 import Test exposing (..)
@@ -114,7 +115,7 @@ roundTripTests =
                             | scheduledTrains =
                                 [ { id = 1
                                   , spawnPoint = WestStation
-                                  , departureTime = { day = 2, hour = 14, minute = 30 }
+                                  , departureTime = GameTime.fromDayHourMinute 2 14 30
                                   , consist = [ { id = 4, stockType = Boxcar, reversed = False, provisional = False } ]
                                   , program =
                                         [ SetReverser Forward
@@ -133,7 +134,7 @@ roundTripTests =
                                 Expect.all
                                     [ \_ -> train.id |> Expect.equal 1
                                     , \_ -> train.spawnPoint |> Expect.equal WestStation
-                                    , \_ -> train.departureTime |> Expect.equal { day = 2, hour = 14, minute = 30 }
+                                    , \_ -> train.departureTime |> Expect.equal (GameTime.fromDayHourMinute 2 14 30)
                                     , \_ -> List.length train.program |> Expect.equal 4
                                     ]
                                     ()
@@ -235,7 +236,7 @@ roundTripTests =
                             | scheduledTrains =
                                 [ { id = 1
                                   , spawnPoint = EastStation
-                                  , departureTime = { day = 0, hour = 0, minute = 0 }
+                                  , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = allOrders
                                   }
@@ -370,7 +371,7 @@ edgeCaseTests =
                             | scheduledTrains =
                                 [ { id = 1
                                   , spawnPoint = EastStation
-                                  , departureTime = { day = 0, hour = 0, minute = 0 }
+                                  , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = []
                                   }
@@ -406,7 +407,7 @@ edgeCaseTests =
                             | scheduledTrains =
                                 [ { id = 1
                                   , spawnPoint = EastStation
-                                  , departureTime = { day = 0, hour = 0, minute = 0 }
+                                  , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = [ Couple ]
                                   }
@@ -430,7 +431,7 @@ edgeCaseTests =
                             | scheduledTrains =
                                 [ { id = 1
                                   , spawnPoint = EastStation
-                                  , departureTime = { day = 0, hour = 0, minute = 0 }
+                                  , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = [ Uncouple 2 ]
                                   }
@@ -455,7 +456,7 @@ edgeCaseTests =
                             | scheduledTrains =
                                 [ { id = 1
                                   , spawnPoint = EastStation
-                                  , departureTime = { day = 0, hour = 0, minute = 0 }
+                                  , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = [ SetReverser Forward, MoveTo PlatformSpot TrainHead ]
                                   }
