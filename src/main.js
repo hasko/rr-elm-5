@@ -4,7 +4,7 @@ const KEY = "rr-state";
 
 const app = Elm.Main.init({
   node: document.getElementById("app"),
-  flags: localStorage.getItem(KEY)  // Pass raw JSON string or null
+  flags: null  // Scenario loaded via HTTP, not flags
 });
 
 // Save state to localStorage

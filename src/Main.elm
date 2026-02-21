@@ -12,6 +12,7 @@ import Camera
 import Html exposing (Html, button, div, span, text)
 import Html.Attributes exposing (disabled, style)
 import Html.Events exposing (onClick)
+import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Planning.Helpers exposing (returnStockToInventory)
@@ -22,6 +23,7 @@ import Programmer.Update
 import Planning.View as PlanningView
 import Programmer.View as ProgrammerView
 import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
+import Scenario exposing (Scenario)
 import Simulation
 import Sawmill.View as SawmillView
 import Set exposing (Set)
@@ -50,13 +52,19 @@ port clearStorage : () -> Cmd msg
 -- MAIN
 
 
-main : Program (Maybe String) Model Msg
+type AppState
+    = Loading
+    | LoadFailed String
+    | Ready Model
+
+
+main : Program () AppState Msg
 main =
     Browser.element
-        { init = init
-        , update = update
-        , subscriptions = subscriptions
-        , view = view
+        { init = appInit
+        , update = appUpdate
+        , subscriptions = appSubscriptions
+        , view = appView
         }
 
 
@@ -71,7 +79,8 @@ type GameMode
 
 
 type alias Model =
-    { mode : GameMode
+    { scenario : Scenario
+    , mode : GameMode
     , gameTime : GameTime
     , cameraState : Camera.CameraState
     , viewportSize : { width : Float, height : Float }
@@ -93,27 +102,22 @@ type alias Model =
     }
 
 
-init : Maybe String -> ( Model, Cmd Msg )
-init maybeJson =
-    case maybeJson of
-        Just jsonString ->
-            case Decode.decodeString Storage.decodeSavedState jsonString of
-                Ok saved ->
-                    ( restoreModel saved, Cmd.none )
-
-                Err _ ->
-                    -- Corrupt data, start fresh
-                    ( defaultModel, Cmd.none )
-
-        Nothing ->
-            ( defaultModel, Cmd.none )
+appInit : () -> ( AppState, Cmd Msg )
+appInit _ =
+    ( Loading
+    , Http.get
+        { url = "/scenarios/sawmill.json"
+        , expect = Http.expectJson ScenarioLoaded Scenario.decoder
+        }
+    )
 
 
-{-| Default model for first-time users or corrupt saved data.
+{-| Default model for a loaded scenario.
 -}
-defaultModel : Model
-defaultModel =
-    { mode = Planning
+defaultModel : Scenario -> Model
+defaultModel scenario =
+    { scenario = scenario
+    , mode = Planning
     , gameTime = GameTime.fromHourMinute 6 0
     , cameraState =
         { camera =
@@ -133,87 +137,12 @@ defaultModel =
     }
 
 
-{-| Restore model from saved state.
--}
-restoreModel : Storage.SavedState -> Model
-restoreModel saved =
-    let
-        mode =
-            case saved.mode of
-                "Running" ->
-                    Running
-
-                "Paused" ->
-                    Paused
-
-                _ ->
-                    Planning
-
-        turnoutState =
-            case saved.turnoutState of
-                "Reverse" ->
-                    Reverse
-
-                _ ->
-                    Normal
-
-        -- Restore active trains by reconstructing routes
-        activeTrains =
-            List.map
-                (\t ->
-                    { id = t.id
-                    , consist = t.consist
-                    , position = t.position
-                    , speed = t.speed
-                    , route = Storage.routeForSpawnPoint t.spawnPoint turnoutState
-                    , spawnPoint = t.spawnPoint
-                    , program = []
-                    , programCounter = 0
-                    , trainState = WaitingForOrders
-                    , reverser = Programmer.Forward
-                    , waitTimer = 0
-                    }
-                )
-                saved.activeTrains
-
-        -- Restore planning state
-        planningState =
-            let
-                base =
-                    Planning.initPlanningState
-            in
-            { base
-                | scheduledTrains = saved.scheduledTrains
-                , inventories = saved.inventories
-                , nextTrainId = saved.nextTrainId
-            }
-    in
-    { mode = mode
-    , gameTime = saved.gameTime
-    , cameraState =
-        { camera =
-            { center = Vec2.vec2 saved.cameraX saved.cameraY
-            , zoom = saved.cameraZoom
-            }
-        , dragState = Nothing
-        }
-    , viewportSize = { width = 800, height = 600 }
-    , turnoutState = turnoutState
-    , hoveredElement = Nothing
-    , planningState = planningState
-    , activeTrains = activeTrains
-    , spawnedTrainIds = Set.fromList saved.spawnedTrainIds
-    , timeMultiplier = saved.timeMultiplier
-    , selectedTrainId = Nothing
-    }
-
-
-
 -- UPDATE
 
 
 type Msg
-    = Tick Float -- Delta time in milliseconds
+    = ScenarioLoaded (Result Http.Error Scenario)
+    | Tick Float -- Delta time in milliseconds
     | TogglePlayPause
     | SetMode GameMode
     | ElementHovered ElementId
@@ -258,9 +187,57 @@ type Msg
     | DeselectTrain
 
 
+appUpdate : Msg -> AppState -> ( AppState, Cmd Msg )
+appUpdate msg state =
+    case state of
+        Loading ->
+            case msg of
+                ScenarioLoaded (Ok scenario) ->
+                    ( Ready (defaultModel scenario), Cmd.none )
+
+                ScenarioLoaded (Err err) ->
+                    ( LoadFailed (httpErrorToString err), Cmd.none )
+
+                _ ->
+                    ( state, Cmd.none )
+
+        LoadFailed _ ->
+            ( state, Cmd.none )
+
+        Ready model ->
+            let
+                ( newModel, cmd ) =
+                    update msg model
+            in
+            ( Ready newModel, cmd )
+
+
+httpErrorToString : Http.Error -> String
+httpErrorToString err =
+    case err of
+        Http.BadUrl url ->
+            "Bad URL: " ++ url
+
+        Http.Timeout ->
+            "Request timed out"
+
+        Http.NetworkError ->
+            "Network error"
+
+        Http.BadStatus status ->
+            "Bad status: " ++ String.fromInt status
+
+        Http.BadBody body ->
+            "Bad body: " ++ body
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ScenarioLoaded _ ->
+            -- Handled by appUpdate
+            ( model, Cmd.none )
+
         Tick deltaMs ->
             if model.mode == Running then
                 let
@@ -660,6 +637,16 @@ extractSavedState model =
 -- SUBSCRIPTIONS
 
 
+appSubscriptions : AppState -> Sub Msg
+appSubscriptions state =
+    case state of
+        Ready model ->
+            subscriptions model
+
+        _ ->
+            Sub.none
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
@@ -677,6 +664,54 @@ subscriptions model =
 
 
 -- VIEW
+
+
+appView : AppState -> Html Msg
+appView state =
+    case state of
+        Loading ->
+            viewLoading
+
+        LoadFailed errMsg ->
+            viewLoadFailed errMsg
+
+        Ready model ->
+            view model
+
+
+viewLoading : Html Msg
+viewLoading =
+    div
+        [ style "width" "100%"
+        , style "height" "100%"
+        , style "display" "flex"
+        , style "justify-content" "center"
+        , style "align-items" "center"
+        , style "background" "#2a2a2a"
+        , style "color" "#e0e0e0"
+        , style "font-family" "monospace"
+        , style "font-size" "18px"
+        ]
+        [ text "Loading scenario..." ]
+
+
+viewLoadFailed : String -> Html Msg
+viewLoadFailed errMsg =
+    div
+        [ style "width" "100%"
+        , style "height" "100%"
+        , style "display" "flex"
+        , style "flex-direction" "column"
+        , style "justify-content" "center"
+        , style "align-items" "center"
+        , style "background" "#2a2a2a"
+        , style "color" "#ff6b6b"
+        , style "font-family" "monospace"
+        , style "gap" "12px"
+        ]
+        [ div [ style "font-size" "20px", style "font-weight" "bold" ] [ text "Failed to load scenario" ]
+        , div [ style "font-size" "14px", style "color" "#aaa" ] [ text errMsg ]
+        ]
 
 
 view : Model -> Html Msg

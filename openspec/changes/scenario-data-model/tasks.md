@@ -30,16 +30,16 @@
 
 ## 6. Two-phase init and scenario threading
 
-- [ ] 6.1 Add `AppState` type (`Loading | LoadFailed String | Ready Model`) to `Main.elm`, change `init` to fire `Http.get` for the scenario JSON, change `update`/`view`/`subscriptions` to dispatch on `AppState`
-- [ ] 6.2 Add `scenario : Scenario` field to `Model`, make `defaultModel` a function of `Scenario`
-- [ ] 6.3 Build `Track.Layout` from scenario graph (using `Scenario/Layout.elm`) instead of `Sawmill.Layout.trackLayout`
-- [ ] 6.4 Initialize `turnoutStates : Dict String SwitchState` from scenario data, replacing the single `turnoutState : SwitchState` field in `SimState` and `Model`
-- [ ] 6.5 Add loading screen view and load-failed error view
+- [x] 6.1 Add `AppState` type (`Loading | LoadFailed String | Ready Model`) to `Main.elm`, change `init` to fire `Http.get` for the scenario JSON, change `update`/`view`/`subscriptions` to dispatch on `AppState`
+- [x] 6.2 Add `scenario : Scenario` field to `Model`, make `defaultModel` a function of `Scenario`
+- [ ] 6.3 Build `Track.Layout` from scenario graph (using `Scenario/Layout.elm`) instead of `Sawmill.Layout.trackLayout` _(deferred to phase 10 — requires simulation/route code to also be updated)_
+- [ ] 6.4 Initialize `turnoutStates : Dict String SwitchState` from scenario data, replacing the single `turnoutState : SwitchState` field in `SimState` and `Model` _(deferred to phase 10 — requires simulation/route code to also be updated)_
+- [x] 6.5 Add loading screen view and load-failed error view
 
 ## 7. Test two-phase init
 
-- [ ] 7.1 Run `npx elm-test` and `npx playwright test` — identify regressions from phase 6
-- [ ] 7.2 Fix all compilation errors and test failures from the init/model restructuring
+- [x] 7.1 Run `npx elm-test` and `npx playwright test` — identify regressions from phase 6
+- [x] 7.2 Fix all compilation errors and test failures from the init/model restructuring
 
 ## 8. Planning UI from scenario data
 
