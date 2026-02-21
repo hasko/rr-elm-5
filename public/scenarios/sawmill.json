@@ -1,0 +1,89 @@
+{
+  "name": "Morning Run",
+  "description": "Move passengers and freight along the sawmill siding before the morning shift.",
+  "startTime": "06:00",
+  "endTime": "07:00",
+  "track": {
+    "nodes": [
+      { "id": "e-portal", "type": "portal" },
+      { "id": "t1", "type": "turnout", "hand": "right", "radius": 170, "sweep": 15, "throughLength": 50, "initialState": "through" },
+      { "id": "w-portal", "type": "portal" },
+      { "id": "buffer", "type": "buffer" }
+    ],
+    "edges": [
+      {
+        "from": "e-portal",
+        "to": "t1",
+        "segments": [
+          { "type": "straight", "length": 250 }
+        ]
+      },
+      {
+        "from": "t1",
+        "to": "w-portal",
+        "port": "through",
+        "segments": [
+          { "type": "straight", "length": 200 }
+        ]
+      },
+      {
+        "from": "t1",
+        "to": "buffer",
+        "port": "diverge",
+        "segments": [
+          { "type": "curve", "radius": 170, "sweep": 30 },
+          { "type": "straight", "length": 150 }
+        ],
+        "spots": [
+          { "id": "platform", "at": 149, "name": "Platform" },
+          { "id": "team-track", "at": 209, "name": "Team Track" }
+        ]
+      }
+    ]
+  },
+  "stations": [
+    {
+      "id": "east",
+      "name": "Millville",
+      "portal": "e-portal",
+      "stock": [
+        { "type": "locomotive", "count": 1 },
+        { "type": "coach", "count": 2 }
+      ]
+    },
+    {
+      "id": "west",
+      "name": "Lumber Junction",
+      "portal": "w-portal",
+      "stock": [
+        { "type": "locomotive", "count": 1 },
+        { "type": "flatbed", "count": 1 },
+        { "type": "coach", "count": 1 }
+      ]
+    }
+  ],
+  "goals": [
+    {
+      "what": "coach",
+      "from": "east",
+      "at": "west",
+      "flavor": "Morning commuters need a ride to Lumber Junction"
+    },
+    {
+      "what": "coach",
+      "from": "east",
+      "at": "west",
+      "flavor": "More commuters heading to Lumber Junction"
+    },
+    {
+      "what": "flatbed",
+      "at": "team-track",
+      "flavor": "Spot an empty flatbed at the team track for loading"
+    },
+    {
+      "what": "coach",
+      "at": "platform",
+      "flavor": "A coach must stop at the sawmill platform"
+    }
+  ]
+}
