@@ -337,20 +337,7 @@ update msg model =
                     ( { model | turnoutState = newState, activeTrains = rebuiltTrains }, Cmd.none )
 
                 TunnelPortalId ->
-                    -- Open planning panel with West Station selected (low-X portal)
-                    let
-                        planning =
-                            model.planningState
-                    in
-                    ( { model
-                        | mode = Planning
-                        , planningState = { planning | selectedSpawnPoint = EastStation }
-                      }
-                    , Cmd.none
-                    )
-
-                WestTunnelPortalId ->
-                    -- Open planning panel with East Station selected (high-X portal)
+                    -- Open planning panel with West Station selected (left/west portal)
                     let
                         planning =
                             model.planningState
@@ -358,6 +345,19 @@ update msg model =
                     ( { model
                         | mode = Planning
                         , planningState = { planning | selectedSpawnPoint = WestStation }
+                      }
+                    , Cmd.none
+                    )
+
+                WestTunnelPortalId ->
+                    -- Open planning panel with East Station selected (right/east portal)
+                    let
+                        planning =
+                            model.planningState
+                    in
+                    ( { model
+                        | mode = Planning
+                        , planningState = { planning | selectedSpawnPoint = EastStation }
                       }
                     , Cmd.none
                     )
