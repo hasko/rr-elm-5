@@ -115,6 +115,9 @@ viewPanelHeader onClose onReset =
         ]
 
 
+-- TODO: Station names and count are scenario-specific. When supporting
+-- multiple scenarios, derive this list from scenario data instead of
+-- hardcoding "West Station" / "East Station".
 viewSpawnPointSelector : SpawnPointId -> (SpawnPointId -> msg) -> Html msg
 viewSpawnPointSelector selected onSelect =
     div
@@ -129,8 +132,8 @@ viewSpawnPointSelector selected onSelect =
             ]
             [ text "STATION" ]
         , div [ style "display" "flex", style "gap" "8px" ]
-            [ viewSpawnPointButton EastStation "West Station" selected onSelect
-            , viewSpawnPointButton WestStation "East Station" selected onSelect
+            [ viewSpawnPointButton WestStation "West Station" selected onSelect
+            , viewSpawnPointButton EastStation "East Station" selected onSelect
             ]
         ]
 
@@ -320,13 +323,15 @@ viewAvailableStock state onSelectStock =
 
 
 {-| Group stock items by type and return (type, count, representative item).
-Always returns all stock types, even those with 0 count.
+Only returns types that have at least one item available.
 -}
 groupAndCountStock : List StockItem -> List ( StockType, Int, StockItem )
 groupAndCountStock items =
     let
         stockTypes =
-            [ Locomotive, PassengerCar, Flatbed, Boxcar ]
+            items
+                |> List.map .stockType
+                |> unique
 
         countType stockType =
             let
@@ -339,11 +344,28 @@ groupAndCountStock items =
                             first
 
                         [] ->
+                            -- Unreachable: stockTypes derived from items
                             { id = 0, stockType = stockType, reversed = False, provisional = False }
             in
             ( stockType, List.length matching, representative )
     in
     List.map countType stockTypes
+
+
+{-| Remove duplicates from a list, preserving first occurrence order.
+-}
+unique : List a -> List a
+unique list =
+    List.foldl
+        (\item acc ->
+            if List.member item acc then
+                acc
+
+            else
+                acc ++ [ item ]
+        )
+        []
+        list
 
 
 viewStockTypeItem : Maybe StockItem -> (StockItem -> msg) -> ( StockType, Int, StockItem ) -> Html msg
@@ -356,22 +378,12 @@ viewStockTypeItem selectedItem onSelect ( stockType, count, representative ) =
 
                 Nothing ->
                     False
-
-        isUnavailable =
-            count == 0
     in
     div
         [ attribute "data-testid" ("stock-" ++ stockTypeTestId stockType)
         , style "position" "relative"
         , style "cursor" "pointer"
         , style "padding" "8px"
-        , style "opacity"
-            (if isUnavailable then
-                "0.4"
-
-             else
-                "1"
-            )
         , style "background"
             (if isSelected then
                 "#2a4a6e"
@@ -395,13 +407,7 @@ viewStockTypeItem selectedItem onSelect ( stockType, count, representative ) =
             [ style "position" "absolute"
             , style "top" "-8px"
             , style "right" "-8px"
-            , style "background"
-                (if isUnavailable then
-                    "#666"
-
-                 else
-                    "#4a9eff"
-                )
+            , style "background" "#4a9eff"
             , style "color" "#fff"
             , style "border-radius" "50%"
             , style "width" "20px"
