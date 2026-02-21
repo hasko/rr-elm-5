@@ -12,7 +12,7 @@ Each tick, trains with a program advance through their orders:
 
 -}
 
-import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SpotTarget(..), spotName)
+import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotTarget(..))
 import Train.Route as Route
 import Train.Stock exposing (carCenterOffset, consistLength)
 import Train.Types exposing (ActiveTrain, Effect(..), Route, TrainState(..))
@@ -121,14 +121,14 @@ executeCurrentOrder deltaSeconds train =
 
 {-| Execute a MoveTo order: accelerate toward target, brake to stop.
 -}
-executeMoveTo : Float -> SpotId -> SpotTarget -> ActiveTrain -> ( ActiveTrain, List Effect )
+executeMoveTo : Float -> String -> SpotTarget -> ActiveTrain -> ( ActiveTrain, List Effect )
 executeMoveTo deltaSeconds spotId spotTarget train =
     case Route.spotPosition spotId train.route of
         Nothing ->
             -- Spot not reachable on this route
             ( { train
                 | speed = 0
-                , trainState = Stopped ("Cannot reach " ++ spotName spotId)
+                , trainState = Stopped ("Cannot reach " ++ spotId)
               }
             , []
             )

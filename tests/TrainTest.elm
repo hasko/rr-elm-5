@@ -1,10 +1,10 @@
 module TrainTest exposing (..)
 
 import Expect
-import Planning.Types exposing (ScheduledTrain, SpawnPointId(..), StockItem, StockType(..))
+import Planning.Types exposing (ScheduledTrain, StockItem, StockType(..))
 import Util.GameTime as GameTime
 import Planning.Helpers exposing (returnStockToInventory)
-import Programmer.Types exposing (Order(..), SpotId(..), SpotTarget(..))
+import Programmer.Types exposing (Order(..), SpotTarget(..))
 import Train.Execution as Execution
 import Sawmill.Layout exposing (SwitchState(..), trackLayout)
 import Set
@@ -214,7 +214,7 @@ spawnTests =
                         scheduled =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                              , spawnPoint = EastStation
+                              , spawnPoint = "east"
                               , departureTime = GameTime.fromDayHourMinute 0 0 10
                               , program = []
                               }
@@ -231,7 +231,7 @@ spawnTests =
                         scheduled =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                              , spawnPoint = EastStation
+                              , spawnPoint = "east"
                               , departureTime = GameTime.fromDayHourMinute 0 0 10
                               , program = []
                               }
@@ -248,7 +248,7 @@ spawnTests =
                         scheduled =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                              , spawnPoint = EastStation
+                              , spawnPoint = "east"
                               , departureTime = GameTime.fromDayHourMinute 0 0 10
                               , program = []
                               }
@@ -268,13 +268,13 @@ spawnTests =
                         scheduled =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                              , spawnPoint = EastStation
+                              , spawnPoint = "east"
                               , departureTime = GameTime.fromDayHourMinute 0 0 5
                               , program = []
                               }
                             , { id = 2
                               , consist = [ { id = 2, stockType = Locomotive, reversed = False, provisional = False } ]
-                              , spawnPoint = WestStation
+                              , spawnPoint = "west"
                               , departureTime = GameTime.fromDayHourMinute 0 0 5
                               , program = []
                               }
@@ -291,7 +291,7 @@ spawnTests =
                         scheduled =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                              , spawnPoint = EastStation
+                              , spawnPoint = "east"
                               , departureTime = GameTime.fromDayHourMinute 0 0 0
                               , program = []
                               }
@@ -313,7 +313,7 @@ spawnTests =
                         scheduled =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                              , spawnPoint = EastStation
+                              , spawnPoint = "east"
                               , departureTime = GameTime.fromDayHourMinute 0 0 0
                               , program = []
                               }
@@ -522,79 +522,79 @@ spotPositionTests : Test
 spotPositionTests =
     describe "Train.Route.spotPosition"
         [ describe "tunnel spots on eastToWest route"
-            [ test "EastTunnelSpot is at distance 0" <|
+            [ test "e-portal is at distance 0" <|
                 \_ ->
-                    Route.spotPosition EastTunnelSpot (Route.eastToWestRoute Normal)
+                    Route.spotPosition "e-portal" (Route.eastToWestRoute Normal)
                         |> Expect.equal (Just 0.0)
-            , test "WestTunnelSpot is at totalLength" <|
+            , test "w-portal is at totalLength" <|
                 \_ ->
-                    Route.spotPosition WestTunnelSpot (Route.eastToWestRoute Normal)
+                    Route.spotPosition "w-portal" (Route.eastToWestRoute Normal)
                         |> Expect.equal (Just (Route.eastToWestRoute Normal).totalLength)
             ]
         , describe "tunnel spots on westToEast route"
-            [ test "WestTunnelSpot is at distance 0" <|
+            [ test "w-portal is at distance 0" <|
                 \_ ->
-                    Route.spotPosition WestTunnelSpot (Route.westToEastRoute Normal)
+                    Route.spotPosition "w-portal" (Route.westToEastRoute Normal)
                         |> Expect.equal (Just 0.0)
-            , test "EastTunnelSpot is at totalLength" <|
+            , test "e-portal is at totalLength" <|
                 \_ ->
-                    Route.spotPosition EastTunnelSpot (Route.westToEastRoute Normal)
+                    Route.spotPosition "e-portal" (Route.westToEastRoute Normal)
                         |> Expect.equal (Just (Route.westToEastRoute Normal).totalLength)
             ]
         , describe "siding spots on mainline routes"
-            [ test "PlatformSpot is not reachable on mainline eastToWest route" <|
+            [ test "platform is not reachable on mainline eastToWest route" <|
                 \_ ->
-                    Route.spotPosition PlatformSpot (Route.eastToWestRoute Normal)
+                    Route.spotPosition "platform" (Route.eastToWestRoute Normal)
                         |> Expect.equal Nothing
-            , test "TeamTrackSpot is not reachable on mainline eastToWest route" <|
+            , test "team-track is not reachable on mainline eastToWest route" <|
                 \_ ->
-                    Route.spotPosition TeamTrackSpot (Route.eastToWestRoute Normal)
+                    Route.spotPosition "team-track" (Route.eastToWestRoute Normal)
                         |> Expect.equal Nothing
-            , test "PlatformSpot is not reachable on mainline westToEast route" <|
+            , test "platform is not reachable on mainline westToEast route" <|
                 \_ ->
-                    Route.spotPosition PlatformSpot (Route.westToEastRoute Normal)
+                    Route.spotPosition "platform" (Route.westToEastRoute Normal)
                         |> Expect.equal Nothing
-            , test "TeamTrackSpot is not reachable on mainline westToEast route" <|
+            , test "team-track is not reachable on mainline westToEast route" <|
                 \_ ->
-                    Route.spotPosition TeamTrackSpot (Route.westToEastRoute Normal)
+                    Route.spotPosition "team-track" (Route.westToEastRoute Normal)
                         |> Expect.equal Nothing
             ]
         , describe "siding spots on siding route"
-            [ test "PlatformSpot is reachable on Reverse siding route" <|
+            [ test "platform is reachable on Reverse siding route" <|
                 \_ ->
                     let
                         route =
                             Route.eastToWestRoute Reverse
                     in
-                    case Route.spotPosition PlatformSpot route of
+                    case Route.spotPosition "platform" route of
                         Just dist ->
                             dist |> Expect.greaterThan 0.0
 
                         Nothing ->
-                            Expect.fail "Expected PlatformSpot to be reachable on siding route"
-            , test "TeamTrackSpot is reachable on Reverse siding route" <|
+                            Expect.fail "Expected platform to be reachable on siding route"
+            , test "team-track is reachable on Reverse siding route" <|
                 \_ ->
                     let
                         route =
                             Route.eastToWestRoute Reverse
                     in
-                    case Route.spotPosition TeamTrackSpot route of
+                    case Route.spotPosition "team-track" route of
                         Just dist ->
                             dist |> Expect.greaterThan 0.0
 
                         Nothing ->
-                            Expect.fail "Expected TeamTrackSpot to be reachable on siding route"
-            , test "PlatformSpot is before TeamTrackSpot on siding route" <|
+                            Expect.fail "Expected team-track to be reachable on siding route"
+            , test "platform is before team-track on siding route" <|
                 \_ ->
                     let
                         route =
                             Route.eastToWestRoute Reverse
 
                         platformDist =
-                            Route.spotPosition PlatformSpot route
+                            Route.spotPosition "platform" route
 
                         teamTrackDist =
-                            Route.spotPosition TeamTrackSpot route
+                            Route.spotPosition "team-track" route
                     in
                     case ( platformDist, teamTrackDist ) of
                         ( Just p, Just t ) ->
@@ -639,7 +639,7 @@ testTrain { id, consist, position, speed, route } =
     , position = position
     , speed = speed
     , route = route
-    , spawnPoint = EastStation
+    , spawnPoint = "east"
     , program = []
     , programCounter = 0
     , trainState = WaitingForOrders
@@ -661,7 +661,7 @@ executingTrain program =
     , position = 0
     , speed = 0
     , route = route
-    , spawnPoint = EastStation
+    , spawnPoint = "east"
     , program = program
     , programCounter = 0
     , trainState = Executing
@@ -805,7 +805,7 @@ executionTests =
                 \_ ->
                     let
                         train =
-                            executingTrain [ Programmer.Types.MoveTo PlatformSpot TrainHead ]
+                            executingTrain [ Programmer.Types.MoveTo "platform" TrainHead ]
 
                         ( result, _ ) =
                             Execution.stepProgram 0.5 train
@@ -814,7 +814,7 @@ executionTests =
             , test "MoveTo unreachable spot stops train with error" <|
                 \_ ->
                     let
-                        -- Use mainline route where PlatformSpot is unreachable
+                        -- Use mainline route where "platform" is unreachable
                         route =
                             Route.eastToWestRoute Normal
 
@@ -824,8 +824,8 @@ executionTests =
                             , position = 0
                             , speed = 0
                             , route = route
-                            , spawnPoint = EastStation
-                            , program = [ Programmer.Types.MoveTo PlatformSpot TrainHead ]
+                            , spawnPoint = "east"
+                            , program = [ Programmer.Types.MoveTo "platform" TrainHead ]
                             , programCounter = 0
                             , trainState = Executing
                             , reverser = Programmer.Types.Forward
@@ -855,7 +855,7 @@ executionTests =
                             , position = 10
                             , speed = 5.0
                             , route = route
-                            , spawnPoint = EastStation
+                            , spawnPoint = "east"
                             , program = []
                             , programCounter = 0
                             , trainState = WaitingForOrders
@@ -885,7 +885,7 @@ executionTests =
                             , position = 10
                             , speed = 5.0
                             , route = route
-                            , spawnPoint = EastStation
+                            , spawnPoint = "east"
                             , program = []
                             , programCounter = 0
                             , trainState = Stopped "test error"
@@ -991,8 +991,8 @@ executionTests =
                             , position = route.totalLength - 5
                             , speed = 10.0
                             , route = route
-                            , spawnPoint = EastStation
-                            , program = [ Programmer.Types.MoveTo TeamTrackSpot TrainHead ]
+                            , spawnPoint = "east"
+                            , program = [ Programmer.Types.MoveTo "team-track" TrainHead ]
                             , programCounter = 0
                             , trainState = Executing
                             , reverser = Programmer.Types.Forward
@@ -1020,8 +1020,8 @@ executionTests =
                             , position = route.totalLength - 1
                             , speed = 20.0
                             , route = route
-                            , spawnPoint = EastStation
-                            , program = [ Programmer.Types.MoveTo TeamTrackSpot TrainHead ]
+                            , spawnPoint = "east"
+                            , program = [ Programmer.Types.MoveTo "team-track" TrainHead ]
                             , programCounter = 0
                             , trainState = Executing
                             , reverser = Programmer.Types.Forward
@@ -1049,7 +1049,7 @@ executionTests =
 
                         -- Get platform position on this route
                         platformDist =
-                            Route.spotPosition PlatformSpot route
+                            Route.spotPosition "platform" route
                                 |> Maybe.withDefault 300
 
                         train =
@@ -1058,10 +1058,10 @@ executionTests =
                             , position = platformDist + 50
                             , speed = 0
                             , route = route
-                            , spawnPoint = EastStation
+                            , spawnPoint = "east"
                             , program =
                                 [ Programmer.Types.SetReverser Programmer.Types.Reverse
-                                , Programmer.Types.MoveTo PlatformSpot TrainHead
+                                , Programmer.Types.MoveTo "platform" TrainHead
                                 ]
                             , programCounter = 0
                             , trainState = Executing
@@ -1090,7 +1090,7 @@ executionTests =
                             Route.eastToWestRoute Reverse
 
                         platformDist =
-                            Route.spotPosition PlatformSpot route
+                            Route.spotPosition "platform" route
                                 |> Maybe.withDefault 300
 
                         -- Position past the platform, reverser Forward
@@ -1100,8 +1100,8 @@ executionTests =
                             , position = platformDist + 50
                             , speed = 0
                             , route = route
-                            , spawnPoint = EastStation
-                            , program = [ Programmer.Types.MoveTo PlatformSpot TrainHead ]
+                            , spawnPoint = "east"
+                            , program = [ Programmer.Types.MoveTo "platform" TrainHead ]
                             , programCounter = 0
                             , trainState = Executing
                             , reverser = Programmer.Types.Forward
@@ -1122,7 +1122,7 @@ executionTests =
                             Route.eastToWestRoute Reverse
 
                         platformDist =
-                            Route.spotPosition PlatformSpot route
+                            Route.spotPosition "platform" route
                                 |> Maybe.withDefault 300
 
                         -- Place train very close to target (within arrival threshold)
@@ -1132,8 +1132,8 @@ executionTests =
                             , position = platformDist - 0.3
                             , speed = 1.0
                             , route = route
-                            , spawnPoint = EastStation
-                            , program = [ Programmer.Types.MoveTo PlatformSpot TrainHead ]
+                            , spawnPoint = "east"
+                            , program = [ Programmer.Types.MoveTo "platform" TrainHead ]
                             , programCounter = 0
                             , trainState = Executing
                             , reverser = Programmer.Types.Forward
@@ -1158,7 +1158,7 @@ executionTests =
                         scheduled =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                              , spawnPoint = EastStation
+                              , spawnPoint = "east"
                               , departureTime = GameTime.fromDayHourMinute 0 0 0
                               , program = [ Programmer.Types.SetReverser Programmer.Types.Forward ]
                               }
@@ -1179,7 +1179,7 @@ executionTests =
                         scheduled =
                             [ { id = 1
                               , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                              , spawnPoint = EastStation
+                              , spawnPoint = "east"
                               , departureTime = GameTime.fromDayHourMinute 0 0 0
                               , program = []
                               }
@@ -1208,7 +1208,7 @@ executionTests =
                             , position = 100
                             , speed = 0
                             , route = route
-                            , spawnPoint = EastStation
+                            , spawnPoint = "east"
                             , program = []
                             , programCounter = 0
                             , trainState = WaitingForOrders
@@ -1237,7 +1237,7 @@ executionTests =
                             , position = 10
                             , speed = 3.0
                             , route = route
-                            , spawnPoint = EastStation
+                            , spawnPoint = "east"
                             , program = []
                             , programCounter = 0
                             , trainState = WaitingForOrders
@@ -1281,7 +1281,7 @@ executionTests =
             , test "MoveTo unreachable spot error message matches spec" <|
                 \_ ->
                     let
-                        -- Use mainline route where PlatformSpot is unreachable
+                        -- Use mainline route where "platform" is unreachable
                         route =
                             Route.eastToWestRoute Normal
 
@@ -1291,8 +1291,8 @@ executionTests =
                             , position = 0
                             , speed = 0
                             , route = route
-                            , spawnPoint = EastStation
-                            , program = [ Programmer.Types.MoveTo PlatformSpot TrainHead ]
+                            , spawnPoint = "east"
+                            , program = [ Programmer.Types.MoveTo "platform" TrainHead ]
                             , programCounter = 0
                             , trainState = Executing
                             , reverser = Programmer.Types.Forward
@@ -1302,7 +1302,7 @@ executionTests =
                         ( result, _ ) =
                             Execution.stepProgram 0.1 train
                     in
-                    result.trainState |> Expect.equal (Stopped "Cannot reach Platform")
+                    result.trainState |> Expect.equal (Stopped "Cannot reach platform")
             ]
         , describe "buffer stop braking in both directions"
             [ test "reverse-direction buffer stop braking near position 0" <|
@@ -1318,7 +1318,7 @@ executionTests =
                             , position = 5
                             , speed = 10.0
                             , route = route
-                            , spawnPoint = EastStation
+                            , spawnPoint = "east"
                             , program = []
                             , programCounter = 0
                             , trainState = WaitingForOrders
@@ -1346,7 +1346,7 @@ executionTests =
                             , position = 1
                             , speed = 20.0
                             , route = route
-                            , spawnPoint = EastStation
+                            , spawnPoint = "east"
                             , program = []
                             , programCounter = 0
                             , trainState = WaitingForOrders
@@ -1370,16 +1370,16 @@ executionTests =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 10, stockType = PassengerCar, reversed = False, provisional = False } ]
                               }
-                            , { spawnPointId = WestStation
+                            , { spawnPointId = "west"
                               , availableStock = []
                               }
                             ]
 
                         returned =
-                            returnStockToInventory EastStation
+                            returnStockToInventory "east"
                                 [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                 inventories
                     in
@@ -1393,16 +1393,16 @@ executionTests =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = []
                               }
-                            , { spawnPointId = WestStation
+                            , { spawnPointId = "west"
                               , availableStock = [ { id = 5, stockType = Boxcar, reversed = False, provisional = False } ]
                               }
                             ]
 
                         returned =
-                            returnStockToInventory EastStation
+                            returnStockToInventory "east"
                                 [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                 inventories
                     in
@@ -1423,12 +1423,12 @@ executionTests =
                             ]
 
                         inventories =
-                            [ { spawnPointId = WestStation, availableStock = [] }
-                            , { spawnPointId = EastStation, availableStock = [] }
+                            [ { spawnPointId = "west", availableStock = [] }
+                            , { spawnPointId = "east", availableStock = [] }
                             ]
 
                         returned =
-                            returnStockToInventory WestStation consist inventories
+                            returnStockToInventory "west" consist inventories
                     in
                     case List.head returned of
                         Just westInv ->

@@ -1,6 +1,5 @@
 module Planning.Types exposing
-    ( SpawnPointId(..)
-    , StockType(..)
+    ( StockType(..)
     , StockItem
     , Consist
     , ScheduledTrain
@@ -12,9 +11,11 @@ module Planning.Types exposing
     , initPlanningState
     , emptyConsistBuilder
     , stockTypeName
+    , stockTypeFromString
     )
 
 import Programmer.Types exposing (Program, ProgrammerState, emptyProgram)
+import Scenario exposing (Station, StockEntry)
 import Util.GameTime exposing (GameTime)
 
 
@@ -23,13 +24,6 @@ import Util.GameTime exposing (GameTime)
 type PanelMode
     = PlanningView
     | ProgrammerView Int -- trainId being programmed
-
-
-{-| Spawn point identifier for where trains enter the puzzle.
--}
-type SpawnPointId
-    = EastStation
-    | WestStation
 
 
 {-| Rolling stock types.
@@ -61,7 +55,7 @@ type alias Consist =
 -}
 type alias ScheduledTrain =
     { id : Int
-    , spawnPoint : SpawnPointId
+    , spawnPoint : String
     , departureTime : GameTime
     , consist : Consist
     , program : Program
@@ -71,7 +65,7 @@ type alias ScheduledTrain =
 {-| Inventory for a spawn point.
 -}
 type alias SpawnPointInventory =
-    { spawnPointId : SpawnPointId
+    { spawnPointId : String
     , availableStock : List StockItem
     }
 
@@ -95,7 +89,7 @@ type alias ConsistBuilder =
 {-| Planning panel UI state.
 -}
 type alias PlanningState =
-    { selectedSpawnPoint : SpawnPointId
+    { selectedSpawnPoint : String
     , scheduledTrains : List ScheduledTrain
     , inventories : List SpawnPointInventory
     , consistBuilder : ConsistBuilder
@@ -122,28 +116,29 @@ emptyConsistBuilder =
     }
 
 
-{-| Initial planning state with default inventories.
+{-| Initial planning state with inventories derived from scenario stations.
 -}
-initPlanningState : PlanningState
-initPlanningState =
-    { selectedSpawnPoint = EastStation
+initPlanningState : List Station -> PlanningState
+initPlanningState stations =
+    let
+        defaultStation =
+            stations |> List.head |> Maybe.map .id |> Maybe.withDefault ""
+
+        ( inventories, _ ) =
+            List.foldl
+                (\station ( accInv, nextId ) ->
+                    let
+                        ( items, endId ) =
+                            expandStock nextId station.stock
+                    in
+                    ( accInv ++ [ { spawnPointId = station.id, availableStock = items } ], endId )
+                )
+                ( [], 1 )
+                stations
+    in
+    { selectedSpawnPoint = defaultStation
     , scheduledTrains = []
-    , inventories =
-        [ { spawnPointId = EastStation
-          , availableStock =
-                [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
-                , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
-                , { id = 3, stockType = Flatbed, reversed = False, provisional = False }
-                ]
-          }
-        , { spawnPointId = WestStation
-          , availableStock =
-                [ { id = 4, stockType = Locomotive, reversed = False, provisional = False }
-                , { id = 5, stockType = Boxcar, reversed = False, provisional = False }
-                , { id = 6, stockType = Boxcar, reversed = False, provisional = False }
-                ]
-          }
-        ]
+    , inventories = inventories
     , consistBuilder = emptyConsistBuilder
     , timePickerHour = 6
     , timePickerMinute = 0
@@ -157,6 +152,33 @@ initPlanningState =
     , consistPanOffset = 0
     , consistDragState = Nothing
     }
+
+
+{-| Expand stock entries (type + count) into individual StockItems with unique IDs.
+-}
+expandStock : Int -> List StockEntry -> ( List StockItem, Int )
+expandStock startId entries =
+    List.foldl
+        (\entry ( accItems, nextId ) ->
+            let
+                stockType =
+                    stockTypeFromString entry.stockType
+
+                newItems =
+                    List.range 0 (entry.count - 1)
+                        |> List.map
+                            (\i ->
+                                { id = nextId + i
+                                , stockType = stockType
+                                , reversed = False
+                                , provisional = False
+                                }
+                            )
+            in
+            ( accItems ++ newItems, nextId + entry.count )
+        )
+        ( [], startId )
+        entries
 
 
 {-| Get display name for a stock type.
@@ -175,3 +197,27 @@ stockTypeName stockType =
 
         Boxcar ->
             "Boxcar"
+
+
+{-| Map a scenario stock type string to a StockType.
+-}
+stockTypeFromString : String -> StockType
+stockTypeFromString s =
+    case s of
+        "locomotive" ->
+            Locomotive
+
+        "coach" ->
+            PassengerCar
+
+        "passenger" ->
+            PassengerCar
+
+        "flatbed" ->
+            Flatbed
+
+        "boxcar" ->
+            Boxcar
+
+        _ ->
+            Boxcar

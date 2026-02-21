@@ -2,8 +2,38 @@ module PlanningTypesTest exposing (..)
 
 import Expect
 import Planning.Types as Planning exposing (..)
+import Scenario exposing (Station, StockEntry)
 import Util.GameTime as GameTime
 import Test exposing (..)
+
+
+{-| Test stations matching the sawmill scenario.
+-}
+testStations : List Station
+testStations =
+    [ { id = "east"
+      , name = "Millville"
+      , portal = "e-portal"
+      , stock =
+            [ { stockType = "locomotive", count = 1 }
+            , { stockType = "coach", count = 2 }
+            ]
+      }
+    , { id = "west"
+      , name = "Lumber Junction"
+      , portal = "w-portal"
+      , stock =
+            [ { stockType = "locomotive", count = 1 }
+            , { stockType = "flatbed", count = 1 }
+            , { stockType = "coach", count = 1 }
+            ]
+      }
+    ]
+
+
+testPlanningState : PlanningState
+testPlanningState =
+    initPlanningState testStations
 
 
 suite : Test
@@ -20,89 +50,99 @@ suite =
                         |> Expect.equal Nothing
             ]
         , describe "initPlanningState"
-            [ test "has EastStation as default selected spawn point" <|
+            [ test "selects first station as default spawn point" <|
                 \_ ->
-                    initPlanningState.selectedSpawnPoint
-                        |> Expect.equal EastStation
+                    testPlanningState.selectedSpawnPoint
+                        |> Expect.equal "east"
             , test "has empty scheduled trains list" <|
                 \_ ->
-                    initPlanningState.scheduledTrains
+                    testPlanningState.scheduledTrains
                         |> Expect.equal []
-            , test "has two inventories (EastStation and WestStation)" <|
+            , test "has two inventories (one per station)" <|
                 \_ ->
-                    initPlanningState.inventories
+                    testPlanningState.inventories
                         |> List.length
                         |> Expect.equal 2
-            , test "EastStation inventory has 3 stock items" <|
+            , test "east inventory has 3 stock items (1 loco + 2 coaches)" <|
                 \_ ->
                     let
                         eastInventory =
-                            initPlanningState.inventories
-                                |> List.filter (\inv -> inv.spawnPointId == EastStation)
+                            testPlanningState.inventories
+                                |> List.filter (\inv -> inv.spawnPointId == "east")
                                 |> List.head
                                 |> Maybe.map .availableStock
                                 |> Maybe.map List.length
                     in
                     eastInventory
                         |> Expect.equal (Just 3)
-            , test "WestStation inventory has 3 stock items" <|
+            , test "west inventory has 3 stock items (1 loco + 1 flatbed + 1 coach)" <|
                 \_ ->
                     let
                         westInventory =
-                            initPlanningState.inventories
-                                |> List.filter (\inv -> inv.spawnPointId == WestStation)
+                            testPlanningState.inventories
+                                |> List.filter (\inv -> inv.spawnPointId == "west")
                                 |> List.head
                                 |> Maybe.map .availableStock
                                 |> Maybe.map List.length
                     in
                     westInventory
                         |> Expect.equal (Just 3)
-            , test "EastStation has Locomotive, PassengerCar, Flatbed" <|
+            , test "east has Locomotive, PassengerCar, PassengerCar (from coach)" <|
                 \_ ->
                     let
                         eastStockTypes =
-                            initPlanningState.inventories
-                                |> List.filter (\inv -> inv.spawnPointId == EastStation)
+                            testPlanningState.inventories
+                                |> List.filter (\inv -> inv.spawnPointId == "east")
                                 |> List.head
                                 |> Maybe.map .availableStock
                                 |> Maybe.map (List.map .stockType)
                     in
                     eastStockTypes
-                        |> Expect.equal (Just [ Locomotive, PassengerCar, Flatbed ])
-            , test "WestStation has Locomotive and two Boxcars" <|
+                        |> Expect.equal (Just [ Locomotive, PassengerCar, PassengerCar ])
+            , test "west has Locomotive, Flatbed, PassengerCar" <|
                 \_ ->
                     let
                         westStockTypes =
-                            initPlanningState.inventories
-                                |> List.filter (\inv -> inv.spawnPointId == WestStation)
+                            testPlanningState.inventories
+                                |> List.filter (\inv -> inv.spawnPointId == "west")
                                 |> List.head
                                 |> Maybe.map .availableStock
                                 |> Maybe.map (List.map .stockType)
                     in
                     westStockTypes
-                        |> Expect.equal (Just [ Locomotive, Boxcar, Boxcar ])
+                        |> Expect.equal (Just [ Locomotive, Flatbed, PassengerCar ])
+            , test "stock items have sequential IDs starting at 1" <|
+                \_ ->
+                    let
+                        allIds =
+                            testPlanningState.inventories
+                                |> List.concatMap .availableStock
+                                |> List.map .id
+                    in
+                    allIds
+                        |> Expect.equal [ 1, 2, 3, 4, 5, 6 ]
             , test "has empty consist builder" <|
                 \_ ->
-                    initPlanningState.consistBuilder
+                    testPlanningState.consistBuilder
                         |> Expect.equal emptyConsistBuilder
             , test "time picker defaults to Monday 06:00" <|
                 \_ ->
                     let
                         time =
-                            { day = initPlanningState.timePickerDay
-                            , hour = initPlanningState.timePickerHour
-                            , minute = initPlanningState.timePickerMinute
+                            { day = testPlanningState.timePickerDay
+                            , hour = testPlanningState.timePickerHour
+                            , minute = testPlanningState.timePickerMinute
                             }
                     in
                     time
                         |> Expect.equal { day = 0, hour = 6, minute = 0 }
             , test "nextTrainId starts at 1" <|
                 \_ ->
-                    initPlanningState.nextTrainId
+                    testPlanningState.nextTrainId
                         |> Expect.equal 1
             , test "editingTrainId is Nothing" <|
                 \_ ->
-                    initPlanningState.editingTrainId
+                    testPlanningState.editingTrainId
                         |> Expect.equal Nothing
             ]
         , describe "stockTypeName"
@@ -123,6 +163,24 @@ suite =
                     stockTypeName Boxcar
                         |> Expect.equal "Boxcar"
             ]
+        , describe "stockTypeFromString"
+            [ test "maps 'locomotive' to Locomotive" <|
+                \_ ->
+                    stockTypeFromString "locomotive"
+                        |> Expect.equal Locomotive
+            , test "maps 'coach' to PassengerCar" <|
+                \_ ->
+                    stockTypeFromString "coach"
+                        |> Expect.equal PassengerCar
+            , test "maps 'flatbed' to Flatbed" <|
+                \_ ->
+                    stockTypeFromString "flatbed"
+                        |> Expect.equal Flatbed
+            , test "maps 'boxcar' to Boxcar" <|
+                \_ ->
+                    stockTypeFromString "boxcar"
+                        |> Expect.equal Boxcar
+            ]
         , describe "StockItem"
             [ test "can create stock item with id and type" <|
                 \_ ->
@@ -138,7 +196,7 @@ suite =
                 \_ ->
                     let
                         inventory =
-                            { spawnPointId = EastStation
+                            { spawnPointId = "east"
                             , availableStock =
                                 [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
                                 , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
@@ -146,7 +204,7 @@ suite =
                             }
                     in
                     ( inventory.spawnPointId, List.length inventory.availableStock )
-                        |> Expect.equal ( EastStation, 2 )
+                        |> Expect.equal ( "east", 2 )
             ]
         , describe "ScheduledTrain"
             [ test "can create scheduled train" <|
@@ -154,12 +212,13 @@ suite =
                     let
                         train =
                             { id = 5
-                            , spawnPoint = WestStation
+                            , spawnPoint = "west"
                             , departureTime = GameTime.fromDayHourMinute 1 8 30
                             , consist = [ { id = 10, stockType = Locomotive, reversed = False, provisional = False } ]
+                            , program = []
                             }
                     in
                     ( train.id, train.spawnPoint, List.length train.consist )
-                        |> Expect.equal ( 5, WestStation, 1 )
+                        |> Expect.equal ( 5, "west", 1 )
             ]
         ]

@@ -18,7 +18,7 @@ import Planning.Types exposing (..)
 Returns the taken item (if found) and the updated inventories.
 
 -}
-takeStockFromInventory : SpawnPointId -> StockType -> List SpawnPointInventory -> ( Maybe StockItem, List SpawnPointInventory )
+takeStockFromInventory : String -> StockType -> List SpawnPointInventory -> ( Maybe StockItem, List SpawnPointInventory )
 takeStockFromInventory spawnId stockType inventories =
     let
         updateInventory inv =
@@ -47,7 +47,7 @@ takeStockFromInventory spawnId stockType inventories =
 Adds the given items back to the inventory for the specified spawn point.
 
 -}
-returnStockToInventory : SpawnPointId -> List StockItem -> List SpawnPointInventory -> List SpawnPointInventory
+returnStockToInventory : String -> List StockItem -> List SpawnPointInventory -> List SpawnPointInventory
 returnStockToInventory spawnId items inventories =
     let
         nonProvisional =

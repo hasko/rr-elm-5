@@ -13,11 +13,11 @@ import Planning.Types as Planning
         , PanelMode(..)
         , PlanningState
         , ScheduledTrain
-        , SpawnPointId(..)
         , SpawnPointInventory
         , StockItem
         , StockType(..)
         )
+import Scenario exposing (Station)
 import Util.GameTime as GameTime
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
@@ -27,8 +27,9 @@ import Svg.Attributes as SvgA
 -}
 viewPlanningPanel :
     { state : PlanningState
+    , stations : List Station
     , onClose : msg
-    , onSelectSpawnPoint : SpawnPointId -> msg
+    , onSelectSpawnPoint : String -> msg
     , onSelectStock : StockItem -> msg
     , onAddToFront : msg
     , onAddToBack : msg
@@ -61,10 +62,10 @@ viewPlanningPanel config =
         , style "overflow-y" "auto"
         ]
         [ viewPanelHeader config.onClose config.onReset
-        , viewSpawnPointSelector config.state.selectedSpawnPoint config.onSelectSpawnPoint
+        , viewSpawnPointSelector config.stations config.state.selectedSpawnPoint config.onSelectSpawnPoint
         , viewScheduledTrains config.state config.onRemoveTrain config.onSelectTrain config.onOpenProgrammer
         , viewAvailableStock config.state config.onSelectStock
-        , viewConsistBuilder config.state.consistBuilder config.state.selectedSpawnPoint config.state.consistPanOffset config.state.consistDragState config.onAddToFront config.onAddToBack config.onInsertInConsist config.onRemoveFromConsist config.onClearConsist config.onFlipLoco config.onConsistDragStart config.onConsistDragMove config.onConsistDragEnd
+        , viewConsistBuilder config.stations config.state.consistBuilder config.state.selectedSpawnPoint config.state.consistPanOffset config.state.consistDragState config.onAddToFront config.onAddToBack config.onInsertInConsist config.onRemoveFromConsist config.onClearConsist config.onFlipLoco config.onConsistDragStart config.onConsistDragMove config.onConsistDragEnd
         , viewScheduleControls config.state config.onSetDay config.onSetHour config.onSetMinute config.onSchedule config.onOpenProgrammer
         ]
 
@@ -115,11 +116,8 @@ viewPanelHeader onClose onReset =
         ]
 
 
--- TODO: Station names and count are scenario-specific. When supporting
--- multiple scenarios, derive this list from scenario data instead of
--- hardcoding "West Station" / "East Station".
-viewSpawnPointSelector : SpawnPointId -> (SpawnPointId -> msg) -> Html msg
-viewSpawnPointSelector selected onSelect =
+viewSpawnPointSelector : List Station -> String -> (String -> msg) -> Html msg
+viewSpawnPointSelector stations selected onSelect =
     div
         [ style "padding" "12px 16px"
         , style "border-bottom" "1px solid #333"
@@ -132,13 +130,11 @@ viewSpawnPointSelector selected onSelect =
             ]
             [ text "STATION" ]
         , div [ style "display" "flex", style "gap" "8px" ]
-            [ viewSpawnPointButton WestStation "West Station" selected onSelect
-            , viewSpawnPointButton EastStation "East Station" selected onSelect
-            ]
+            (List.map (\station -> viewSpawnPointButton station.id station.name selected onSelect) stations)
         ]
 
 
-viewSpawnPointButton : SpawnPointId -> String -> SpawnPointId -> (SpawnPointId -> msg) -> Html msg
+viewSpawnPointButton : String -> String -> String -> (String -> msg) -> Html msg
 viewSpawnPointButton spawnId labelText selected onSelect =
     let
         isSelected =
@@ -501,8 +497,8 @@ getItemAt index list =
         |> List.head
 
 
-viewConsistBuilder : ConsistBuilder -> SpawnPointId -> Float -> Maybe Planning.ConsistDragState -> msg -> msg -> (Int -> msg) -> (Int -> msg) -> msg -> (Int -> msg) -> (Float -> msg) -> (Float -> msg) -> msg -> Html msg
-viewConsistBuilder builder selectedSpawnPoint panOffset dragState onAddFront onAddBack onInsert onRemove onClear onFlipLoco onDragStart onDragMove onDragEnd =
+viewConsistBuilder : List Station -> ConsistBuilder -> String -> Float -> Maybe Planning.ConsistDragState -> msg -> msg -> (Int -> msg) -> (Int -> msg) -> msg -> (Int -> msg) -> (Float -> msg) -> (Float -> msg) -> msg -> Html msg
+viewConsistBuilder stations builder selectedSpawnPoint panOffset dragState onAddFront onAddBack onInsert onRemove onClear onFlipLoco onDragStart onDragMove onDragEnd =
     let
         hasSelection =
             builder.selectedStock /= Nothing
@@ -547,12 +543,15 @@ viewConsistBuilder builder selectedSpawnPoint panOffset dragState onAddFront onA
             , style "align-items" "center"
             , style "gap" "4px"
             ]
-            [ case selectedSpawnPoint of
-                EastStation ->
-                    viewDestinationLabel (destinationLabel selectedSpawnPoint)
+            [ let
+                stationIndex =
+                    stationIndexOf selectedSpawnPoint stations
+              in
+              if stationIndex == 0 then
+                viewDepartureArrow "\u{2192}"
 
-                WestStation ->
-                    text ""
+              else
+                text ""
             , div
                 [ attribute "data-testid" "consist-area"
                 , style "overflow" "hidden"
@@ -609,12 +608,15 @@ viewConsistBuilder builder selectedSpawnPoint panOffset dragState onAddFront onA
                                 (List.range 0 (List.length items - 1))
                     )
                 ]
-            , case selectedSpawnPoint of
-                WestStation ->
-                    viewDestinationLabel (destinationLabel selectedSpawnPoint)
+            , let
+                stationIndex =
+                    stationIndexOf selectedSpawnPoint stations
+              in
+              if stationIndex /= 0 then
+                viewDepartureArrow "\u{2190}"
 
-                EastStation ->
-                    text ""
+              else
+                text ""
             ]
         , case builder.selectedStock of
             Just stock ->
@@ -642,32 +644,31 @@ decodeClientX toMsg =
     Decode.map toMsg (Decode.field "clientX" Decode.float)
 
 
-{-| Destination label for the consist builder.
-Shows "towards [Station]" on the side the train is heading.
+{-| Get the index of a station ID in the station list (0-based).
 -}
-destinationLabel : SpawnPointId -> String
-destinationLabel spawnPoint =
-    case spawnPoint of
-        EastStation ->
-            "towards East Station"
+stationIndexOf : String -> List Station -> Int
+stationIndexOf stationId stationList =
+    stationList
+        |> List.indexedMap Tuple.pair
+        |> List.filter (\( _, s ) -> s.id == stationId)
+        |> List.head
+        |> Maybe.map Tuple.first
+        |> Maybe.withDefault 0
 
-        WestStation ->
-            "towards West Station"
 
-
-{-| Render a destination label flanking the consist area.
+{-| Render a departure direction arrow flanking the consist area.
 -}
-viewDestinationLabel : String -> Html msg
-viewDestinationLabel labelText =
+viewDepartureArrow : String -> Html msg
+viewDepartureArrow arrow =
     div
-        [ style "font-size" "10px"
+        [ style "font-size" "18px"
         , style "color" "#8a8aaa"
         , style "text-align" "center"
-        , style "max-width" "50px"
+        , style "max-width" "30px"
         , style "flex-shrink" "0"
         , style "line-height" "1.2"
         ]
-        [ text labelText ]
+        [ text arrow ]
 
 
 viewAddButton : Bool -> msg -> Html msg

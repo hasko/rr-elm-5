@@ -29,10 +29,10 @@ test.describe('Sawmill Morning Run - End to End', () => {
     await page.locator('button:has-text("+")').last().click();
     await expect(consistArea.getByTestId('consist-item-passenger')).toHaveCount(1);
 
-    // Add Flatbed (passenger stock is now gone too)
-    await page.getByTestId('stock-flatbed').click();
+    // Add second Passenger Car
+    await page.getByTestId('stock-passenger').click();
     await page.locator('button:has-text("+")').last().click();
-    await expect(consistArea.getByTestId('consist-item-flatbed')).toHaveCount(1);
+    await expect(consistArea.getByTestId('consist-item-passenger')).toHaveCount(2);
 
     // === STEP 2: Schedule the train ===
     const scheduleButton = page.getByTestId('schedule-button');
@@ -58,8 +58,8 @@ test.describe('Sawmill Morning Run - End to End', () => {
 
     // === STEP 4: Add orders for the morning run ===
     // Order 1: Set Switch to Diverging (route train to siding)
-    await page.getByTestId('add-switch-main-diverging').click();
-    await expect(page.getByTestId('order-item-0')).toContainText('Set main Diverging');
+    await page.getByTestId('add-switch-t1-diverging').click();
+    await expect(page.getByTestId('order-item-0')).toContainText('Set t1 Diverging');
 
     // Order 2: Move To Platform
     await page.getByTestId('add-moveto-platform').click();
@@ -70,7 +70,7 @@ test.describe('Sawmill Morning Run - End to End', () => {
     await expect(page.getByTestId('order-item-2')).toContainText('Wait 10 seconds');
 
     // Order 4: Move To Team Track
-    await page.getByTestId('add-moveto-teamtrack').click();
+    await page.getByTestId('add-moveto-team-track').click();
     await expect(page.getByTestId('order-item-3')).toContainText('Move To Team Track');
 
     // Verify all 4 orders are in the list
@@ -102,9 +102,8 @@ test.describe('Sawmill Morning Run - End to End', () => {
     const trainCar = canvas.getByTestId('train-car-locomotive');
     await expect(trainCar).toHaveCount(1, { timeout: 10000 });
 
-    // Also expect passenger car and flatbed
-    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(1, { timeout: 5000 });
-    await expect(canvas.getByTestId('train-car-flatbed')).toHaveCount(1, { timeout: 5000 });
+    // Also expect 2 passenger cars
+    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(2, { timeout: 5000 });
 
     // === STEP 8: Verify train moves (position changes) ===
     const initialTransform = await trainCar.first().getAttribute('transform');
@@ -143,8 +142,7 @@ test.describe('Sawmill Morning Run - End to End', () => {
 
     // Verify train is still visible (didn't despawn)
     await expect(trainCar).toHaveCount(1);
-    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(1);
-    await expect(canvas.getByTestId('train-car-flatbed')).toHaveCount(1);
+    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(2);
   });
 
   test('Train with program spawns in Executing state and follows switch order', async ({ page }) => {
@@ -162,7 +160,7 @@ test.describe('Sawmill Morning Run - End to End', () => {
     await page.getByTestId(/program-btn-/).first().click();
 
     // Just set switch to diverging
-    await page.getByTestId('add-switch-main-diverging').click();
+    await page.getByTestId('add-switch-t1-diverging').click();
 
     // Save
     await page.getByTestId('save-program-btn').click();
@@ -201,7 +199,7 @@ test.describe('Sawmill Morning Run - End to End', () => {
     await page.getByTestId('stock-locomotive').click();
     await page.locator('button:has-text("+")').first().click();
 
-    await page.getByTestId('stock-flatbed').click();
+    await page.getByTestId('stock-passenger').click();
     await page.locator('button:has-text("+")').last().click();
 
     // Schedule
@@ -212,10 +210,10 @@ test.describe('Sawmill Morning Run - End to End', () => {
     await page.getByTestId(/program-btn-/).first().click();
 
     // Morning run orders
-    await page.getByTestId('add-switch-main-diverging').click();
+    await page.getByTestId('add-switch-t1-diverging').click();
     await page.getByTestId('add-moveto-platform').click();
     await page.getByTestId('add-wait-10').click();
-    await page.getByTestId('add-moveto-teamtrack').click();
+    await page.getByTestId('add-moveto-team-track').click();
 
     // Save
     await page.getByTestId('save-program-btn').click();

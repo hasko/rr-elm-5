@@ -11,8 +11,8 @@ module Storage exposing
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
-import Planning.Types exposing (ScheduledTrain, SpawnPointId(..), SpawnPointInventory, StockItem, StockType(..))
-import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SpotTarget(..), SwitchPosition(..))
+import Planning.Types exposing (ScheduledTrain, SpawnPointInventory, StockItem, StockType(..))
+import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotTarget(..), SwitchPosition(..))
 import Sawmill.Layout exposing (SwitchState)
 import Train.Route as Route
 import Train.Types exposing (Route)
@@ -43,20 +43,15 @@ type alias SavedTrain =
     , consist : List StockItem
     , position : Float
     , speed : Float
-    , spawnPoint : SpawnPointId
+    , spawnPoint : String
     }
 
 
 {-| Get route for a spawn point with the given turnout state.
 -}
-routeForSpawnPoint : SpawnPointId -> SwitchState -> Route
+routeForSpawnPoint : String -> SwitchState -> Route
 routeForSpawnPoint spawnPoint switchState =
-    case spawnPoint of
-        EastStation ->
-            Route.eastToWestRoute switchState
-
-        WestStation ->
-            Route.westToEastRoute switchState
+    Route.rebuildRoute spawnPoint switchState
 
 
 
@@ -90,7 +85,7 @@ encodeSavedTrain train =
         , ( "consist", Encode.list encodeStockItem train.consist )
         , ( "position", Encode.float train.position )
         , ( "speed", Encode.float train.speed )
-        , ( "spawnPoint", encodeSpawnPointId train.spawnPoint )
+        , ( "spawnPoint", Encode.string train.spawnPoint )
         ]
 
 
@@ -98,7 +93,7 @@ encodeScheduledTrain : ScheduledTrain -> Encode.Value
 encodeScheduledTrain train =
     Encode.object
         [ ( "id", Encode.int train.id )
-        , ( "spawnPoint", encodeSpawnPointId train.spawnPoint )
+        , ( "spawnPoint", Encode.string train.spawnPoint )
         , ( "departureTime", Encode.float train.departureTime )
         , ( "consist", Encode.list encodeStockItem train.consist )
         , ( "program", Encode.list encodeOrder train.program )
@@ -108,7 +103,7 @@ encodeScheduledTrain train =
 encodeInventory : SpawnPointInventory -> Encode.Value
 encodeInventory inv =
     Encode.object
-        [ ( "spawnPointId", encodeSpawnPointId inv.spawnPointId )
+        [ ( "spawnPointId", Encode.string inv.spawnPointId )
         , ( "availableStock", Encode.list encodeStockItem inv.availableStock )
         ]
 
@@ -140,24 +135,13 @@ encodeStockType st =
                 "Boxcar"
 
 
-encodeSpawnPointId : SpawnPointId -> Encode.Value
-encodeSpawnPointId sp =
-    Encode.string <|
-        case sp of
-            EastStation ->
-                "EastStation"
-
-            WestStation ->
-                "WestStation"
-
-
 encodeOrder : Order -> Encode.Value
 encodeOrder order =
     case order of
         MoveTo spot target ->
             Encode.object
                 ([ ( "type", Encode.string "MoveTo" )
-                 , ( "spot", encodeSpotId spot )
+                 , ( "spot", Encode.string spot )
                  ]
                     ++ (case target of
                             TrainHead ->
@@ -197,23 +181,6 @@ encodeOrder order =
                 [ ( "type", Encode.string "Uncouple" )
                 , ( "keep", Encode.int n )
                 ]
-
-
-encodeSpotId : SpotId -> Encode.Value
-encodeSpotId spot =
-    Encode.string <|
-        case spot of
-            PlatformSpot ->
-                "PlatformSpot"
-
-            TeamTrackSpot ->
-                "TeamTrackSpot"
-
-            EastTunnelSpot ->
-                "EastTunnelSpot"
-
-            WestTunnelSpot ->
-                "WestTunnelSpot"
 
 
 encodeReverserPosition : ReverserPosition -> Encode.Value
@@ -306,14 +273,14 @@ decodeSavedTrain =
         (Decode.field "consist" (Decode.list decodeStockItem))
         (Decode.field "position" Decode.float)
         (Decode.field "speed" Decode.float)
-        (Decode.field "spawnPoint" decodeSpawnPointId)
+        (Decode.field "spawnPoint" Decode.string)
 
 
 decodeScheduledTrain : Decoder ScheduledTrain
 decodeScheduledTrain =
     Decode.map5 ScheduledTrain
         (Decode.field "id" Decode.int)
-        (Decode.field "spawnPoint" decodeSpawnPointId)
+        (Decode.field "spawnPoint" Decode.string)
         (Decode.field "departureTime" Decode.float)
         (Decode.field "consist" (Decode.list decodeStockItem))
         (Decode.field "program" (Decode.list decodeOrder))
@@ -322,7 +289,7 @@ decodeScheduledTrain =
 decodeInventory : Decoder SpawnPointInventory
 decodeInventory =
     Decode.map2 SpawnPointInventory
-        (Decode.field "spawnPointId" decodeSpawnPointId)
+        (Decode.field "spawnPointId" Decode.string)
         (Decode.field "availableStock" (Decode.list decodeStockItem))
 
 
@@ -366,23 +333,6 @@ decodeStockType =
             )
 
 
-decodeSpawnPointId : Decoder SpawnPointId
-decodeSpawnPointId =
-    Decode.string
-        |> Decode.andThen
-            (\s ->
-                case s of
-                    "EastStation" ->
-                        Decode.succeed EastStation
-
-                    "WestStation" ->
-                        Decode.succeed WestStation
-
-                    _ ->
-                        Decode.fail ("Unknown spawn point: " ++ s)
-            )
-
-
 decodeOrder : Decoder Order
 decodeOrder =
     Decode.field "type" Decode.string
@@ -391,7 +341,7 @@ decodeOrder =
                 case orderType of
                     "MoveTo" ->
                         Decode.map2 MoveTo
-                            (Decode.field "spot" decodeSpotId)
+                            (Decode.field "spot" Decode.string)
                             (Decode.field "spotCar" Decode.int
                                 |> Decode.map SpotCar
                                 |> Decode.maybe
@@ -417,29 +367,6 @@ decodeOrder =
 
                     _ ->
                         Decode.fail ("Unknown order type: " ++ orderType)
-            )
-
-
-decodeSpotId : Decoder SpotId
-decodeSpotId =
-    Decode.string
-        |> Decode.andThen
-            (\s ->
-                case s of
-                    "PlatformSpot" ->
-                        Decode.succeed PlatformSpot
-
-                    "TeamTrackSpot" ->
-                        Decode.succeed TeamTrackSpot
-
-                    "EastTunnelSpot" ->
-                        Decode.succeed EastTunnelSpot
-
-                    "WestTunnelSpot" ->
-                        Decode.succeed WestTunnelSpot
-
-                    _ ->
-                        Decode.fail ("Unknown spot: " ++ s)
             )
 
 

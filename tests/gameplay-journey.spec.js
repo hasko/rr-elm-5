@@ -25,10 +25,10 @@ import { test, expect } from '@playwright/test';
  *   - data-testid="train-car-locomotive"    on locomotive SVG in canvas
  *   - data-testid="train-car-passenger"     on passenger car SVG in canvas
  *   - data-testid="train-car-flatbed"       on flatbed SVG in canvas
- *   - data-testid="add-switch-main-diverging"  on the SetSwitch diverging button
- *   - data-testid="add-switch-main-normal"     on the SetSwitch normal button
+ *   - data-testid="add-switch-t1-diverging"  on the SetSwitch diverging button
+ *   - data-testid="add-switch-t1-normal"        on the SetSwitch normal button
  *   - data-testid="add-moveto-platform"     on the MoveTo Platform button
- *   - data-testid="add-moveto-teamtrack"    on the MoveTo Team Track button
+ *   - data-testid="add-moveto-team-track"    on the MoveTo Team Track button
  *   - data-testid="add-wait-10"             on the Wait 10 seconds button
  *   - data-testid="add-wait-60"             on the Wait 60 seconds button
  *   - data-testid="add-reverser-forward"    on the SetReverser Forward button
@@ -74,10 +74,10 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
       await expect(canvas).toBeVisible();
     });
 
-    test('East Station planning panel is open by default', async ({ page }) => {
+    test('Millville planning panel is open by default', async ({ page }) => {
       await expect(page.getByText('Train Planning')).toBeVisible();
-      // Default spawn point is East Station (button is visible in the panel)
-      await expect(page.getByRole('button', { name: 'East Station' })).toBeVisible();
+      // Default spawn point is Millville (button is visible in the panel)
+      await expect(page.getByRole('button', { name: 'Millville' })).toBeVisible();
     });
   });
 
@@ -85,13 +85,12 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
   // Section 2: Building the Morning Consist
   // ---------------------------------------------------------------------------
   test.describe('2. Building the morning consist', () => {
-    test('stock inventory shows locomotive, passenger car, and flatbed', async ({ page }) => {
+    test('stock inventory shows locomotive and passenger car', async ({ page }) => {
       await expect(page.getByTestId('stock-locomotive')).toBeVisible();
       await expect(page.getByTestId('stock-passenger')).toBeVisible();
-      await expect(page.getByTestId('stock-flatbed')).toBeVisible();
     });
 
-    test('can build correct consist: Loco + Coach + Flatbed', async ({ page }) => {
+    test('can build correct consist: Loco + Coach + Coach', async ({ page }) => {
       // Add Locomotive first (at front)
       await page.getByTestId('stock-locomotive').click();
       await page.locator('button:has-text("+")').first().click();
@@ -99,15 +98,15 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
       const consistArea = page.getByTestId('consist-area');
       await expect(consistArea.getByTestId('consist-item-locomotive')).toHaveCount(1);
 
-      // Add Passenger Car (at back)
+      // Add first Passenger Car (at back)
       await page.getByTestId('stock-passenger').click();
       await page.locator('button:has-text("+")').last().click();
       await expect(consistArea.getByTestId('consist-item-passenger')).toHaveCount(1);
 
-      // Add Flatbed (at back)
-      await page.getByTestId('stock-flatbed').click();
+      // Add second Passenger Car (at back)
+      await page.getByTestId('stock-passenger').click();
       await page.locator('button:has-text("+")').last().click();
-      await expect(consistArea.getByTestId('consist-item-flatbed')).toHaveCount(1);
+      await expect(consistArea.getByTestId('consist-item-passenger')).toHaveCount(2);
     });
 
     test('schedule button becomes enabled when consist has a locomotive', async ({ page }) => {
@@ -174,8 +173,8 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
 
       // Add orders for the morning run:
       // Order 1: Set Switch to Diverging
-      await page.getByTestId('add-switch-main-diverging').click();
-      await expect(page.getByTestId('order-item-0')).toContainText('Set main Diverging');
+      await page.getByTestId('add-switch-t1-diverging').click();
+      await expect(page.getByTestId('order-item-0')).toContainText('Set t1 Diverging');
 
       // Order 2: Move To Platform
       await page.getByTestId('add-moveto-platform').click();
@@ -186,7 +185,7 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
       await expect(page.getByTestId('order-item-2')).toContainText('Wait 10 seconds');
 
       // Order 4: Move To Team Track
-      await page.getByTestId('add-moveto-teamtrack').click();
+      await page.getByTestId('add-moveto-team-track').click();
       await expect(page.getByTestId('order-item-3')).toContainText('Move To Team Track');
 
       // Verify 4 orders in list
@@ -222,7 +221,7 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
       await page.getByTestId(/program-btn-/).first().click();
 
       // SetSwitch Diverging + MoveTo Platform
-      await page.getByTestId('add-switch-main-diverging').click();
+      await page.getByTestId('add-switch-t1-diverging').click();
       await page.getByTestId('add-moveto-platform').click();
 
       // Save
@@ -302,11 +301,11 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
       await page.locator('button:has-text("+")').last().click();
       await expect(consistArea.getByTestId('consist-item-passenger')).toHaveCount(1);
 
-      // Add flatbed (wait for stock panel to settle after passenger was consumed)
-      await expect(page.getByTestId('stock-flatbed')).toBeVisible();
-      await page.getByTestId('stock-flatbed').click();
+      // Add second passenger car (wait for stock panel to settle after first was consumed)
+      await expect(page.getByTestId('stock-passenger')).toBeVisible();
+      await page.getByTestId('stock-passenger').click();
       await page.locator('button:has-text("+")').last().click();
-      await expect(consistArea.getByTestId('consist-item-flatbed')).toHaveCount(1);
+      await expect(consistArea.getByTestId('consist-item-passenger')).toHaveCount(2);
 
       // Schedule
       await page.getByTestId('schedule-button').click();
@@ -317,10 +316,10 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
       await page.getByTestId(/program-btn-/).first().click();
 
       // Morning run orders
-      await page.getByTestId('add-switch-main-diverging').click();
+      await page.getByTestId('add-switch-t1-diverging').click();
       await page.getByTestId('add-moveto-platform').click();
       await page.getByTestId('add-wait-10').click();
-      await page.getByTestId('add-moveto-teamtrack').click();
+      await page.getByTestId('add-moveto-team-track').click();
 
       await page.getByTestId('save-program-btn').click();
 
@@ -332,8 +331,7 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
       // -- Verify all 3 cars spawn --
       const canvas = page.locator('svg').first();
       await expect(canvas.getByTestId('train-car-locomotive')).toHaveCount(1, { timeout: 10000 });
-      await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(1, { timeout: 5000 });
-      await expect(canvas.getByTestId('train-car-flatbed')).toHaveCount(1, { timeout: 5000 });
+      await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(2, { timeout: 5000 });
 
       // -- Verify train moves --
       const trainCar = canvas.getByTestId('train-car-locomotive').first();
@@ -362,8 +360,7 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
       // -- Pause and verify train is still on screen --
       await page.getByRole('button', { name: 'Pause' }).click();
       await expect(canvas.getByTestId('train-car-locomotive')).toHaveCount(1);
-      await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(1);
-      await expect(canvas.getByTestId('train-car-flatbed')).toHaveCount(1);
+      await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(2);
     });
   });
 
@@ -457,7 +454,7 @@ test.describe('Gameplay Journey - Sawmill Morning Run', () => {
       // Program
       await page.getByTestId(/train-row-/).first().click();
       await page.getByTestId(/program-btn-/).first().click();
-      await page.getByTestId('add-switch-main-diverging').click();
+      await page.getByTestId('add-switch-t1-diverging').click();
       await page.getByTestId('add-moveto-platform').click();
       await page.getByTestId('save-program-btn').click();
 

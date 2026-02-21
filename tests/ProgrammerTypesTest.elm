@@ -5,76 +5,79 @@ import Programmer.Types exposing (..)
 import Test exposing (..)
 
 
+{-| A simple spot name function for tests that maps IDs to display names.
+-}
+testSpotName : String -> String
+testSpotName spotId =
+    case spotId of
+        "platform" ->
+            "Platform"
+
+        "team-track" ->
+            "Team Track"
+
+        "e-portal" ->
+            "East Tunnel"
+
+        "w-portal" ->
+            "West Tunnel"
+
+        other ->
+            other
+
+
 suite : Test
 suite =
     describe "Programmer.Types"
         [ describe "orderDescription"
-            [ test "MoveTo Platform shows correct description" <|
+            [ test "MoveTo platform shows correct description" <|
                 \_ ->
-                    orderDescription (MoveTo PlatformSpot TrainHead)
+                    orderDescription testSpotName (MoveTo "platform" TrainHead)
                         |> Expect.equal "Move To Platform"
-            , test "MoveTo Team Track shows correct description" <|
+            , test "MoveTo team-track shows correct description" <|
                 \_ ->
-                    orderDescription (MoveTo TeamTrackSpot TrainHead)
+                    orderDescription testSpotName (MoveTo "team-track" TrainHead)
                         |> Expect.equal "Move To Team Track"
-            , test "MoveTo East Tunnel shows correct description" <|
+            , test "MoveTo east portal shows correct description" <|
                 \_ ->
-                    orderDescription (MoveTo EastTunnelSpot TrainHead)
+                    orderDescription testSpotName (MoveTo "e-portal" TrainHead)
                         |> Expect.equal "Move To East Tunnel"
-            , test "MoveTo West Tunnel shows correct description" <|
+            , test "MoveTo west portal shows correct description" <|
                 \_ ->
-                    orderDescription (MoveTo WestTunnelSpot TrainHead)
+                    orderDescription testSpotName (MoveTo "w-portal" TrainHead)
                         |> Expect.equal "Move To West Tunnel"
             , test "SetReverser Forward shows correct description" <|
                 \_ ->
-                    orderDescription (SetReverser Forward)
+                    orderDescription testSpotName (SetReverser Forward)
                         |> Expect.equal "Set Reverser Forward"
             , test "SetReverser Reverse shows correct description" <|
                 \_ ->
-                    orderDescription (SetReverser Reverse)
+                    orderDescription testSpotName (SetReverser Reverse)
                         |> Expect.equal "Set Reverser Reverse"
             , test "SetSwitch Normal shows correct description" <|
                 \_ ->
-                    orderDescription (SetSwitch "main" Normal)
+                    orderDescription testSpotName (SetSwitch "main" Normal)
                         |> Expect.equal "Set main Normal"
             , test "SetSwitch Diverging shows correct description" <|
                 \_ ->
-                    orderDescription (SetSwitch "siding" Diverging)
+                    orderDescription testSpotName (SetSwitch "siding" Diverging)
                         |> Expect.equal "Set siding Diverging"
             , test "WaitSeconds shows correct description" <|
                 \_ ->
-                    orderDescription (WaitSeconds 30)
+                    orderDescription testSpotName (WaitSeconds 30)
                         |> Expect.equal "Wait 30 seconds"
             , test "Couple shows correct description" <|
                 \_ ->
-                    orderDescription Couple
+                    orderDescription testSpotName Couple
                         |> Expect.equal "Couple"
             , test "Uncouple 1 shows correct description" <|
                 \_ ->
-                    orderDescription (Uncouple 1)
+                    orderDescription testSpotName (Uncouple 1)
                         |> Expect.equal "Uncouple (keep 1)"
             , test "Uncouple 3 shows correct description" <|
                 \_ ->
-                    orderDescription (Uncouple 3)
+                    orderDescription testSpotName (Uncouple 3)
                         |> Expect.equal "Uncouple (keep 3)"
-            ]
-        , describe "spotName"
-            [ test "PlatformSpot returns Platform" <|
-                \_ ->
-                    spotName PlatformSpot
-                        |> Expect.equal "Platform"
-            , test "TeamTrackSpot returns Team Track" <|
-                \_ ->
-                    spotName TeamTrackSpot
-                        |> Expect.equal "Team Track"
-            , test "EastTunnelSpot returns East Tunnel" <|
-                \_ ->
-                    spotName EastTunnelSpot
-                        |> Expect.equal "East Tunnel"
-            , test "WestTunnelSpot returns West Tunnel" <|
-                \_ ->
-                    spotName WestTunnelSpot
-                        |> Expect.equal "West Tunnel"
             ]
         , describe "emptyProgram"
             [ test "emptyProgram is an empty list" <|
@@ -95,7 +98,7 @@ suite =
                 \_ ->
                     let
                         program =
-                            [ SetReverser Forward, MoveTo PlatformSpot TrainHead ]
+                            [ SetReverser Forward, MoveTo "platform" TrainHead ]
 
                         state =
                             initProgrammerState 1 program
@@ -119,10 +122,10 @@ suite =
                             [ SetReverser Forward ]
 
                         newProgram =
-                            program ++ [ MoveTo PlatformSpot TrainHead ]
+                            program ++ [ MoveTo "platform" TrainHead ]
                     in
                     newProgram
-                        |> Expect.equal [ SetReverser Forward, MoveTo PlatformSpot TrainHead ]
+                        |> Expect.equal [ SetReverser Forward, MoveTo "platform" TrainHead ]
             , test "program can contain multiple orders of same type" <|
                 \_ ->
                     let
@@ -137,13 +140,13 @@ suite =
                         program =
                             [ SetSwitch "main" Diverging
                             , SetReverser Reverse
-                            , MoveTo TeamTrackSpot TrainHead
+                            , MoveTo "team-track" TrainHead
                             , WaitSeconds 60
                             , SetReverser Forward
-                            , MoveTo EastTunnelSpot TrainHead
+                            , MoveTo "e-portal" TrainHead
                             ]
                     in
-                    List.map orderDescription program
+                    List.map (orderDescription testSpotName) program
                         |> Expect.equal
                             [ "Set main Diverging"
                             , "Set Reverser Reverse"
@@ -156,16 +159,16 @@ suite =
                 \_ ->
                     let
                         program =
-                            [ MoveTo TeamTrackSpot TrainHead
+                            [ MoveTo "team-track" TrainHead
                             , Couple
                             , SetReverser Reverse
-                            , MoveTo PlatformSpot TrainHead
+                            , MoveTo "platform" TrainHead
                             , Uncouple 1
                             , SetReverser Forward
-                            , MoveTo EastTunnelSpot TrainHead
+                            , MoveTo "e-portal" TrainHead
                             ]
                     in
-                    List.map orderDescription program
+                    List.map (orderDescription testSpotName) program
                         |> Expect.equal
                             [ "Move To Team Track"
                             , "Couple"

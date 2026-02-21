@@ -13,7 +13,7 @@ will fail until the implementation lands.
 
 import Expect
 import Planning.Types exposing (StockItem, StockType(..))
-import Programmer.Types exposing (Order(..), SpotId(..))
+import Programmer.Types exposing (Order(..))
 import Sawmill.Layout exposing (SwitchState(..))
 import Test exposing (..)
 import Train.Route as Route
@@ -89,7 +89,7 @@ backwardCompatTests =
                         Route.eastToWestRoute Reverse
 
                     platformDist =
-                        Route.spotPosition PlatformSpot route
+                        Route.spotPosition "platform" route
                             |> Maybe.withDefault 300
                 in
                 -- The platform spot should be reachable on the siding route
@@ -175,14 +175,14 @@ threeCarConsistTests =
                         Route.eastToWestRoute Reverse
 
                     teamTrackDist =
-                        Route.spotPosition TeamTrackSpot route
+                        Route.spotPosition "team-track" route
                 in
                 case teamTrackDist of
                     Just dist ->
                         dist |> Expect.greaterThan 0
 
                     Nothing ->
-                        Expect.fail "Expected TeamTrackSpot to be reachable on siding route"
+                        Expect.fail "Expected team-track to be reachable on siding route"
         , test "spotting car 2 at team track: train head is offset ahead of team track distance" <|
             \_ ->
                 -- When spotting car 2 at team track, the train head should be
@@ -193,7 +193,7 @@ threeCarConsistTests =
                         Route.eastToWestRoute Reverse
 
                     teamTrackDist =
-                        Route.spotPosition TeamTrackSpot route
+                        Route.spotPosition "team-track" route
                             |> Maybe.withDefault 0
 
                     car2Offset =

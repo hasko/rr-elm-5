@@ -3,7 +3,7 @@ module Train.Spawn exposing (checkSpawns)
 {-| Train spawning logic.
 -}
 
-import Planning.Types exposing (ScheduledTrain, SpawnPointId(..))
+import Planning.Types exposing (ScheduledTrain)
 import Programmer.Types exposing (ReverserPosition(..))
 import Sawmill.Layout exposing (SwitchState)
 import Set exposing (Set)
@@ -42,12 +42,7 @@ createActiveTrain : SwitchState -> ScheduledTrain -> ActiveTrain
 createActiveTrain switchState scheduled =
     let
         route =
-            case scheduled.spawnPoint of
-                EastStation ->
-                    Route.eastToWestRoute switchState
-
-                WestStation ->
-                    Route.westToEastRoute switchState
+            Route.rebuildRoute scheduled.spawnPoint switchState
 
         -- Start position: negative so train is "inside" the tunnel
         -- Lead car front at 0 means the car just emerged

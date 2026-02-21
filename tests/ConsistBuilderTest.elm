@@ -42,13 +42,13 @@ suite =
         , describe "takeStockFromInventory"
             [ test "returns Nothing when inventories list is empty" <|
                 \_ ->
-                    takeStockFromInventory EastStation Locomotive []
+                    takeStockFromInventory "east" Locomotive []
                         |> Expect.equal ( Nothing, [] )
             , test "takes one stock item of specified type from correct spawn point" <|
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock =
                                     [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
                                     , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
@@ -57,7 +57,7 @@ suite =
                             ]
 
                         ( taken, newInventories ) =
-                            takeStockFromInventory EastStation Locomotive inventories
+                            takeStockFromInventory "east" Locomotive inventories
                     in
                     Expect.all
                         [ \_ -> taken |> Expect.equal (Just { id = 1, stockType = Locomotive, reversed = False, provisional = False })
@@ -72,7 +72,7 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = WestStation
+                            [ { spawnPointId = "west"
                               , availableStock =
                                     [ { id = 5, stockType = Boxcar, reversed = False, provisional = False }
                                     , { id = 6, stockType = Boxcar, reversed = False, provisional = False }
@@ -81,7 +81,7 @@ suite =
                             ]
 
                         ( taken, _ ) =
-                            takeStockFromInventory WestStation Boxcar inventories
+                            takeStockFromInventory "west" Boxcar inventories
                     in
                     taken
                         |> Expect.equal (Just { id = 5, stockType = Boxcar, reversed = False, provisional = False })
@@ -89,13 +89,13 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               }
                             ]
 
                         ( taken, _ ) =
-                            takeStockFromInventory EastStation Flatbed inventories
+                            takeStockFromInventory "east" Flatbed inventories
                     in
                     taken
                         |> Expect.equal Nothing
@@ -103,13 +103,13 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               }
                             ]
 
                         ( taken, _ ) =
-                            takeStockFromInventory WestStation Locomotive inventories
+                            takeStockFromInventory "west" Locomotive inventories
                     in
                     taken
                         |> Expect.equal Nothing
@@ -117,19 +117,19 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               }
-                            , { spawnPointId = WestStation
+                            , { spawnPointId = "west"
                               , availableStock = [ { id = 2, stockType = Boxcar, reversed = False, provisional = False } ]
                               }
                             ]
 
                         ( _, newInventories ) =
-                            takeStockFromInventory EastStation Locomotive inventories
+                            takeStockFromInventory "east" Locomotive inventories
                     in
                     newInventories
-                        |> List.filter (\inv -> inv.spawnPointId == WestStation)
+                        |> List.filter (\inv -> inv.spawnPointId == "west")
                         |> List.head
                         |> Maybe.map .availableStock
                         |> Expect.equal (Just [ { id = 2, stockType = Boxcar, reversed = False, provisional = False } ])
@@ -137,13 +137,13 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               }
                             ]
 
                         ( taken, newInventories ) =
-                            takeStockFromInventory EastStation Locomotive inventories
+                            takeStockFromInventory "east" Locomotive inventories
                     in
                     Expect.all
                         [ \_ -> taken |> Expect.equal (Just { id = 1, stockType = Locomotive, reversed = False, provisional = False })
@@ -158,13 +158,13 @@ suite =
         , describe "returnStockToInventory"
             [ test "returns empty list when inventories list is empty" <|
                 \_ ->
-                    returnStockToInventory EastStation [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ] []
+                    returnStockToInventory "east" [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ] []
                         |> Expect.equal []
             , test "adds stock items to correct spawn point inventory" <|
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               }
                             ]
@@ -175,7 +175,7 @@ suite =
                             ]
 
                         newInventories =
-                            returnStockToInventory EastStation itemsToReturn inventories
+                            returnStockToInventory "east" itemsToReturn inventories
                     in
                     newInventories
                         |> List.head
@@ -186,7 +186,7 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               }
                             ]
@@ -195,7 +195,7 @@ suite =
                             [ { id = 2, stockType = PassengerCar, reversed = False, provisional = False } ]
 
                         newInventories =
-                            returnStockToInventory EastStation itemsToReturn inventories
+                            returnStockToInventory "east" itemsToReturn inventories
                     in
                     newInventories
                         |> List.head
@@ -210,10 +210,10 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               }
-                            , { spawnPointId = WestStation
+                            , { spawnPointId = "west"
                               , availableStock = [ { id = 4, stockType = Boxcar, reversed = False, provisional = False } ]
                               }
                             ]
@@ -222,10 +222,10 @@ suite =
                             [ { id = 2, stockType = PassengerCar, reversed = False, provisional = False } ]
 
                         newInventories =
-                            returnStockToInventory EastStation itemsToReturn inventories
+                            returnStockToInventory "east" itemsToReturn inventories
                     in
                     newInventories
-                        |> List.filter (\inv -> inv.spawnPointId == WestStation)
+                        |> List.filter (\inv -> inv.spawnPointId == "west")
                         |> List.head
                         |> Maybe.map .availableStock
                         |> Expect.equal (Just [ { id = 4, stockType = Boxcar, reversed = False, provisional = False } ])
@@ -233,13 +233,13 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               }
                             ]
 
                         newInventories =
-                            returnStockToInventory EastStation [] inventories
+                            returnStockToInventory "east" [] inventories
                     in
                     newInventories
                         |> List.head
@@ -249,7 +249,7 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = []
                               }
                             ]
@@ -258,7 +258,7 @@ suite =
                             [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
 
                         newInventories =
-                            returnStockToInventory EastStation itemsToReturn inventories
+                            returnStockToInventory "east" itemsToReturn inventories
                     in
                     newInventories
                         |> List.head
@@ -270,7 +270,7 @@ suite =
                 \_ ->
                     let
                         initialInventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock =
                                     [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
                                     , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
@@ -279,12 +279,12 @@ suite =
                             ]
 
                         ( takenItem, afterTake ) =
-                            takeStockFromInventory EastStation Locomotive initialInventories
+                            takeStockFromInventory "east" Locomotive initialInventories
 
                         afterReturn =
                             case takenItem of
                                 Just item ->
-                                    returnStockToInventory EastStation [ item ] afterTake
+                                    returnStockToInventory "east" [ item ] afterTake
 
                                 Nothing ->
                                     afterTake
@@ -298,7 +298,7 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock =
                                     [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
                                     , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
@@ -308,10 +308,10 @@ suite =
                             ]
 
                         ( _, afterFirst ) =
-                            takeStockFromInventory EastStation Locomotive inventories
+                            takeStockFromInventory "east" Locomotive inventories
 
                         ( _, afterSecond ) =
-                            takeStockFromInventory EastStation PassengerCar afterFirst
+                            takeStockFromInventory "east" PassengerCar afterFirst
                     in
                     afterSecond
                         |> List.head
@@ -322,16 +322,16 @@ suite =
                 \_ ->
                     let
                         inventories =
-                            [ { spawnPointId = EastStation
+                            [ { spawnPointId = "east"
                               , availableStock = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                               }
                             ]
 
                         ( _, afterFirst ) =
-                            takeStockFromInventory EastStation Locomotive inventories
+                            takeStockFromInventory "east" Locomotive inventories
 
                         ( secondTake, _ ) =
-                            takeStockFromInventory EastStation Locomotive afterFirst
+                            takeStockFromInventory "east" Locomotive afterFirst
                     in
                     secondTake
                         |> Expect.equal Nothing

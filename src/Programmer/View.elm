@@ -1,4 +1,4 @@
-module Programmer.View exposing (viewProgrammerPanel)
+module Programmer.View exposing (SpotInfo, SwitchInfo, viewProgrammerPanel)
 
 {-| View functions for the train programmer panel UI.
 -}
@@ -12,19 +12,28 @@ import Programmer.Types as Programmer
         ( Order(..)
         , ProgrammerState
         , ReverserPosition(..)
-        , SpotId(..)
         , SpotTarget(..)
         , SwitchPosition(..)
         , orderDescription
-        , spotName
         )
 
 
 {-| Render the entire programmer panel.
 -}
+type alias SpotInfo =
+    { id : String, name : String, shortName : String }
+
+
+type alias SwitchInfo =
+    { id : String, label : String }
+
+
 viewProgrammerPanel :
     { state : ProgrammerState
     , trainId : Int
+    , spots : List SpotInfo
+    , switches : List SwitchInfo
+    , spotNameFn : String -> String
     , onBack : msg
     , onSave : msg
     , onAddOrder : Order -> msg
@@ -47,7 +56,7 @@ viewProgrammerPanel config =
         ]
         [ viewHeader config.trainId config.onBack
         , viewProgramList config
-        , viewOrderPalette config.onAddOrder
+        , viewOrderPalette config.spots config.switches config.onAddOrder
         , viewSaveButton config.onSave
         ]
 
@@ -84,6 +93,7 @@ viewHeader trainId onBack =
 viewProgramList :
     { a
         | state : ProgrammerState
+        , spotNameFn : String -> String
         , onRemoveOrder : Int -> msg
         , onMoveOrderUp : Int -> msg
         , onMoveOrderDown : Int -> msg
@@ -119,14 +129,14 @@ viewProgramList config =
           else
             div []
                 (List.indexedMap
-                    (viewOrderItem config.state.selectedOrderIndex programLength config.onRemoveOrder config.onMoveOrderUp config.onMoveOrderDown config.onSelectOrder)
+                    (viewOrderItem config.spotNameFn config.state.selectedOrderIndex programLength config.onRemoveOrder config.onMoveOrderUp config.onMoveOrderDown config.onSelectOrder)
                     program
                 )
         ]
 
 
-viewOrderItem : Maybe Int -> Int -> (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> Int -> Order -> Html msg
-viewOrderItem selectedIndex programLength onRemove onMoveUp onMoveDown onSelect index order =
+viewOrderItem : (String -> String) -> Maybe Int -> Int -> (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> (Int -> msg) -> Int -> Order -> Html msg
+viewOrderItem spotNameFn selectedIndex programLength onRemove onMoveUp onMoveDown onSelect index order =
     let
         isSelected =
             selectedIndex == Just index
@@ -171,7 +181,7 @@ viewOrderItem selectedIndex programLength onRemove onMoveUp onMoveDown onSelect 
                 , style "min-width" "20px"
                 ]
                 [ text (String.fromInt (index + 1) ++ ".") ]
-            , span [] [ text (orderDescription order) ]
+            , span [] [ text (orderDescription spotNameFn order) ]
             ]
         , div [ style "display" "flex", style "align-items" "center", style "gap" "4px" ]
             [ button
@@ -261,8 +271,8 @@ viewOrderItem selectedIndex programLength onRemove onMoveUp onMoveDown onSelect 
         ]
 
 
-viewOrderPalette : (Order -> msg) -> Html msg
-viewOrderPalette onAddOrder =
+viewOrderPalette : List SpotInfo -> List SwitchInfo -> (Order -> msg) -> Html msg
+viewOrderPalette spots switches onAddOrder =
     div
         [ style "padding" "12px 16px"
         , style "border-bottom" "1px solid #333"
@@ -275,39 +285,39 @@ viewOrderPalette onAddOrder =
             ]
             [ text "ADD ORDER" ]
         , div [ style "display" "flex", style "flex-direction" "column", style "gap" "8px" ]
-            [ viewMoveToSelector onAddOrder
+            [ viewMoveToSelector spots onAddOrder
             , viewReverserSelector onAddOrder
-            , viewSwitchSelector onAddOrder
+            , viewSwitchSelector switches onAddOrder
             , viewWaitSecondsSelector onAddOrder
             , viewCoupleSelector onAddOrder
             ]
         ]
 
 
-viewMoveToSelector : (Order -> msg) -> Html msg
-viewMoveToSelector onAddOrder =
+viewMoveToSelector : List SpotInfo -> (Order -> msg) -> Html msg
+viewMoveToSelector spots onAddOrder =
     div [ style "display" "flex", style "flex-direction" "column", style "gap" "6px" ]
-        [ div [ style "display" "flex", style "gap" "8px", style "align-items" "center" ]
-            [ label [ style "width" "90px", style "font-size" "14px" ] [ text "Move To" ]
-            , viewSpotButton PlatformSpot onAddOrder
-            , viewSpotButton TeamTrackSpot onAddOrder
-            , viewSpotButton EastTunnelSpot onAddOrder
-            , viewSpotButton WestTunnelSpot onAddOrder
-            ]
-        , div [ style "display" "flex", style "gap" "8px", style "align-items" "center" ]
-            [ label [ style "width" "90px", style "font-size" "14px", style "color" "#aaa" ] [ text "Spot Car" ]
-            , viewSpotCarButton 0 PlatformSpot onAddOrder
-            , viewSpotCarButton 1 PlatformSpot onAddOrder
-            , viewSpotCarButton 0 TeamTrackSpot onAddOrder
-            , viewSpotCarButton 1 TeamTrackSpot onAddOrder
-            ]
+        [ div [ style "display" "flex", style "gap" "8px", style "align-items" "center", style "flex-wrap" "wrap" ]
+            (label [ style "width" "90px", style "font-size" "14px" ] [ text "Move To" ]
+                :: List.map (\spot -> viewSpotButton spot onAddOrder) spots
+            )
+        , div [ style "display" "flex", style "gap" "8px", style "align-items" "center", style "flex-wrap" "wrap" ]
+            (label [ style "width" "90px", style "font-size" "14px", style "color" "#aaa" ] [ text "Spot Car" ]
+                :: List.concatMap
+                    (\spot ->
+                        [ viewSpotCarButton 0 spot onAddOrder
+                        , viewSpotCarButton 1 spot onAddOrder
+                        ]
+                    )
+                    (List.filter (\s -> not (String.contains "portal" s.id)) spots)
+            )
         ]
 
 
-viewSpotButton : SpotId -> (Order -> msg) -> Html msg
+viewSpotButton : SpotInfo -> (Order -> msg) -> Html msg
 viewSpotButton spot onAddOrder =
     button
-        [ attribute "data-testid" ("add-moveto-" ++ spotTestId spot)
+        [ attribute "data-testid" ("add-moveto-" ++ spot.id)
         , style "background" "#3a5a3a"
         , style "border" "none"
         , style "color" "#e0e0e0"
@@ -315,15 +325,15 @@ viewSpotButton spot onAddOrder =
         , style "border-radius" "4px"
         , style "cursor" "pointer"
         , style "font-size" "12px"
-        , onClick (onAddOrder (MoveTo spot TrainHead))
+        , onClick (onAddOrder (MoveTo spot.id TrainHead))
         ]
-        [ text (spotShortName spot) ]
+        [ text spot.shortName ]
 
 
-viewSpotCarButton : Int -> SpotId -> (Order -> msg) -> Html msg
+viewSpotCarButton : Int -> SpotInfo -> (Order -> msg) -> Html msg
 viewSpotCarButton carIndex spot onAddOrder =
     button
-        [ attribute "data-testid" ("add-spotcar-" ++ String.fromInt carIndex ++ "-" ++ spotTestId spot)
+        [ attribute "data-testid" ("add-spotcar-" ++ String.fromInt carIndex ++ "-" ++ spot.id)
         , style "background" "#2a5a3a"
         , style "border" "none"
         , style "color" "#e0e0e0"
@@ -331,41 +341,9 @@ viewSpotCarButton carIndex spot onAddOrder =
         , style "border-radius" "4px"
         , style "cursor" "pointer"
         , style "font-size" "12px"
-        , onClick (onAddOrder (MoveTo spot (SpotCar carIndex)))
+        , onClick (onAddOrder (MoveTo spot.id (SpotCar carIndex)))
         ]
-        [ text ("#" ++ String.fromInt (carIndex + 1) ++ "@" ++ spotShortName spot) ]
-
-
-spotShortName : SpotId -> String
-spotShortName spot =
-    case spot of
-        PlatformSpot ->
-            "Plat"
-
-        TeamTrackSpot ->
-            "Team"
-
-        EastTunnelSpot ->
-            "E.Tun"
-
-        WestTunnelSpot ->
-            "W.Tun"
-
-
-spotTestId : SpotId -> String
-spotTestId spot =
-    case spot of
-        PlatformSpot ->
-            "platform"
-
-        TeamTrackSpot ->
-            "teamtrack"
-
-        EastTunnelSpot ->
-            "easttunnel"
-
-        WestTunnelSpot ->
-            "westtunnel"
+        [ text ("#" ++ String.fromInt (carIndex + 1) ++ "@" ++ spot.shortName) ]
 
 
 viewReverserSelector : (Order -> msg) -> Html msg
@@ -399,35 +377,40 @@ viewReverserSelector onAddOrder =
         ]
 
 
-viewSwitchSelector : (Order -> msg) -> Html msg
-viewSwitchSelector onAddOrder =
-    div [ style "display" "flex", style "gap" "8px", style "align-items" "center" ]
-        [ label [ style "width" "90px", style "font-size" "14px" ] [ text "Switch" ]
-        , button
-            [ attribute "data-testid" "add-switch-main-normal"
-            , style "background" "#5a5a3a"
-            , style "border" "none"
-            , style "color" "#e0e0e0"
-            , style "padding" "6px 10px"
-            , style "border-radius" "4px"
-            , style "cursor" "pointer"
-            , style "font-size" "12px"
-            , onClick (onAddOrder (SetSwitch "main" Normal))
-            ]
-            [ text "Main→N" ]
-        , button
-            [ attribute "data-testid" "add-switch-main-diverging"
-            , style "background" "#5a5a3a"
-            , style "border" "none"
-            , style "color" "#e0e0e0"
-            , style "padding" "6px 10px"
-            , style "border-radius" "4px"
-            , style "cursor" "pointer"
-            , style "font-size" "12px"
-            , onClick (onAddOrder (SetSwitch "main" Diverging))
-            ]
-            [ text "Main→D" ]
-        ]
+viewSwitchSelector : List SwitchInfo -> (Order -> msg) -> Html msg
+viewSwitchSelector switches onAddOrder =
+    div [ style "display" "flex", style "gap" "8px", style "align-items" "center", style "flex-wrap" "wrap" ]
+        (label [ style "width" "90px", style "font-size" "14px" ] [ text "Switch" ]
+            :: List.concatMap
+                (\sw ->
+                    [ button
+                        [ attribute "data-testid" ("add-switch-" ++ sw.id ++ "-normal")
+                        , style "background" "#5a5a3a"
+                        , style "border" "none"
+                        , style "color" "#e0e0e0"
+                        , style "padding" "6px 10px"
+                        , style "border-radius" "4px"
+                        , style "cursor" "pointer"
+                        , style "font-size" "12px"
+                        , onClick (onAddOrder (SetSwitch sw.id Normal))
+                        ]
+                        [ text (sw.label ++ "\u{2192}N") ]
+                    , button
+                        [ attribute "data-testid" ("add-switch-" ++ sw.id ++ "-diverging")
+                        , style "background" "#5a5a3a"
+                        , style "border" "none"
+                        , style "color" "#e0e0e0"
+                        , style "padding" "6px 10px"
+                        , style "border-radius" "4px"
+                        , style "cursor" "pointer"
+                        , style "font-size" "12px"
+                        , onClick (onAddOrder (SetSwitch sw.id Diverging))
+                        ]
+                        [ text (sw.label ++ "\u{2192}D") ]
+                    ]
+                )
+                switches
+        )
 
 
 viewWaitSecondsSelector : (Order -> msg) -> Html msg

@@ -19,8 +19,8 @@ import { test, expect } from '@playwright/test';
  *   - data-testid="program-btn-{id}"        on the Program button for each train
  *   - data-testid="save-program-btn"        on the Save button in programmer
  *   - data-testid="close-planning-panel"    on planning panel close button
- *   - data-testid="add-switch-main-diverging"  on the SetSwitch diverging button
- *   - data-testid="add-moveto-teamtrack"    on the MoveTo Team Track button
+ *   - data-testid="add-switch-t1-diverging"  on the SetSwitch diverging button
+ *   - data-testid="add-moveto-team-track"    on the MoveTo Team Track button
  *   - data-testid="train-car-locomotive"    on locomotive SVG in canvas
  *   - data-testid="train-car-passenger"     on passenger car SVG in canvas
  *   - data-testid="train-car-flatbed"       on flatbed SVG in canvas
@@ -35,7 +35,8 @@ test.describe('Car-specific spotting', () => {
   });
 
   /**
-   * Helper: build a 3-car consist (Loco + Coach + Flatbed) and schedule it.
+   * Helper: build a 3-car consist (Loco + Coach + Coach) and schedule it.
+   * Uses East station (Millville) which has loco x1 + coach x2.
    */
   async function buildThreeCarConsist(page) {
     // Add Locomotive
@@ -45,17 +46,17 @@ test.describe('Car-specific spotting', () => {
     const consistArea = page.getByTestId('consist-area');
     await expect(consistArea.getByTestId('consist-item-locomotive')).toHaveCount(1);
 
-    // Add Passenger Car
+    // Add first Passenger Car
     await expect(page.getByTestId('stock-passenger')).toBeVisible();
     await page.getByTestId('stock-passenger').click();
     await page.locator('button:has-text("+")').last().click();
     await expect(consistArea.getByTestId('consist-item-passenger')).toHaveCount(1);
 
-    // Add Flatbed
-    await expect(page.getByTestId('stock-flatbed')).toBeVisible();
-    await page.getByTestId('stock-flatbed').click();
+    // Add second Passenger Car
+    await expect(page.getByTestId('stock-passenger')).toBeVisible();
+    await page.getByTestId('stock-passenger').click();
     await page.locator('button:has-text("+")').last().click();
-    await expect(consistArea.getByTestId('consist-item-flatbed')).toHaveCount(1);
+    await expect(consistArea.getByTestId('consist-item-passenger')).toHaveCount(2);
 
     // Schedule
     await page.getByTestId('schedule-button').click();
@@ -72,12 +73,12 @@ test.describe('Car-specific spotting', () => {
     await page.getByTestId(/program-btn-/).first().click();
 
     // Set switch to diverging (to reach the siding)
-    await page.getByTestId('add-switch-main-diverging').click();
-    await expect(page.getByTestId('order-item-0')).toContainText('Set main Diverging');
+    await page.getByTestId('add-switch-t1-diverging').click();
+    await expect(page.getByTestId('order-item-0')).toContainText('Set t1 Diverging');
 
-    // MoveTo Team Track
-    await page.getByTestId('add-moveto-teamtrack').click();
-    await expect(page.getByTestId('order-item-1')).toContainText('Move To Team Track');
+    // MoveTo Platform (on siding, far enough from buffer stop for 3-car consist)
+    await page.getByTestId('add-moveto-platform').click();
+    await expect(page.getByTestId('order-item-1')).toContainText('Move To Platform');
 
     // Save program
     await page.getByTestId('save-program-btn').click();
@@ -91,10 +92,9 @@ test.describe('Car-specific spotting', () => {
     // Wait for all 3 cars to spawn
     const canvas = page.locator('svg').first();
     await expect(canvas.getByTestId('train-car-locomotive')).toHaveCount(1, { timeout: 10000 });
-    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(1, { timeout: 5000 });
-    await expect(canvas.getByTestId('train-car-flatbed')).toHaveCount(1, { timeout: 5000 });
+    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(2, { timeout: 5000 });
 
-    // Verify train moves toward team track (transform changes)
+    // Verify train moves toward platform (transform changes)
     const trainCar = canvas.getByTestId('train-car-locomotive').first();
     const initialTransform = await trainCar.getAttribute('transform');
 
@@ -120,8 +120,7 @@ test.describe('Car-specific spotting', () => {
     // After stopping, all 3 cars should still be visible on canvas
     await page.getByRole('button', { name: 'Pause' }).click();
     await expect(canvas.getByTestId('train-car-locomotive')).toHaveCount(1);
-    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(1);
-    await expect(canvas.getByTestId('train-car-flatbed')).toHaveCount(1);
+    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(2);
   });
 
   test('all three cars are visible during movement', async ({ page }) => {
@@ -132,8 +131,8 @@ test.describe('Car-specific spotting', () => {
     // Quick program: diverge + move to platform
     await page.getByTestId(/train-row-/).first().click();
     await page.getByTestId(/program-btn-/).first().click();
-    await page.getByTestId('add-switch-main-diverging').click();
-    await page.getByTestId('add-moveto-teamtrack').click();
+    await page.getByTestId('add-switch-t1-diverging').click();
+    await page.getByTestId('add-moveto-platform').click();
     await page.getByTestId('save-program-btn').click();
 
     await page.getByTestId('close-planning-panel').click();
@@ -147,8 +146,7 @@ test.describe('Car-specific spotting', () => {
     // While the train is moving, all 3 cars should remain visible
     await page.waitForTimeout(2000);
     await expect(canvas.getByTestId('train-car-locomotive')).toHaveCount(1);
-    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(1);
-    await expect(canvas.getByTestId('train-car-flatbed')).toHaveCount(1);
+    await expect(canvas.getByTestId('train-car-passenger')).toHaveCount(2);
 
     await page.getByRole('button', { name: 'Pause' }).click();
   });

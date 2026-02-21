@@ -16,8 +16,8 @@ respecting turnout state to choose between through and diverging paths.
 -}
 
 import Array
-import Planning.Types exposing (SpawnPointId(..))
-import Programmer.Types exposing (SpotId(..))
+import Planning.Types
+import Programmer.Types
 import Sawmill.Layout exposing (SwitchState(..), trackLayout)
 import Track.Element as Element
     exposing
@@ -57,14 +57,13 @@ route segments before the turnout divergence are identical regardless
 of switch state. After the turnout, the route takes the new path.
 
 -}
-rebuildRoute : SpawnPointId -> SwitchState -> Route
+rebuildRoute : String -> SwitchState -> Route
 rebuildRoute spawnPoint switchState =
-    case spawnPoint of
-        EastStation ->
-            eastToWestRoute switchState
+    if spawnPoint == "east" then
+        eastToWestRoute switchState
 
-        WestStation ->
-            westToEastRoute switchState
+    else
+        westToEastRoute switchState
 
 
 {-| Build a route by walking the track layout graph from a starting connector.
@@ -547,32 +546,32 @@ Distances are measured from the element's connector 0 along its travel direction
   - WestTunnelSpot: at west tunnel portal (element 7, TrackEnd)
 
 -}
-spotLocation : SpotId -> SpotLocation
+spotLocation : String -> SpotLocation
 spotLocation spotId =
-    case spotId of
-        PlatformSpot ->
-            { elementId = ElementId 5
-            , localDistance = 60.0
-            , elementLength = 150.0
-            }
+    if spotId == "platform" then
+        { elementId = ElementId 5
+        , localDistance = 60.0
+        , elementLength = 150.0
+        }
 
-        TeamTrackSpot ->
-            { elementId = ElementId 5
-            , localDistance = 120.0
-            , elementLength = 150.0
-            }
+    else if spotId == "team-track" then
+        { elementId = ElementId 5
+        , localDistance = 120.0
+        , elementLength = 150.0
+        }
 
-        EastTunnelSpot ->
-            { elementId = ElementId 0
-            , localDistance = 0.0
-            , elementLength = 0.0
-            }
+    else if spotId == "e-portal" then
+        { elementId = ElementId 0
+        , localDistance = 0.0
+        , elementLength = 0.0
+        }
 
-        WestTunnelSpot ->
-            { elementId = ElementId 7
-            , localDistance = 0.0
-            , elementLength = 0.0
-            }
+    else
+        -- w-portal or unknown
+        { elementId = ElementId 7
+        , localDistance = 0.0
+        , elementLength = 0.0
+        }
 
 
 {-| Get the route distance for a spot on the given route.
@@ -581,31 +580,30 @@ Returns Nothing if the spot's element is not part of the route
 (e.g., PlatformSpot is not reachable on the mainline-through route).
 
 -}
-spotPosition : SpotId -> Route -> Maybe Float
+spotPosition : String -> Route -> Maybe Float
 spotPosition spotId route =
-    case spotId of
-        EastTunnelSpot ->
-            if routeStartsFromEast route then
-                Just 0.0
+    if spotId == "e-portal" then
+        if routeStartsFromEast route then
+            Just 0.0
 
-            else if routeEndsAtEast route then
-                Just route.totalLength
+        else if routeEndsAtEast route then
+            Just route.totalLength
 
-            else
-                Nothing
+        else
+            Nothing
 
-        WestTunnelSpot ->
-            if routeStartsFromWest route then
-                Just 0.0
+    else if spotId == "w-portal" then
+        if routeStartsFromWest route then
+            Just 0.0
 
-            else if routeEndsAtWest route then
-                Just route.totalLength
+        else if routeEndsAtWest route then
+            Just route.totalLength
 
-            else
-                Nothing
+        else
+            Nothing
 
-        _ ->
-            findSpotOnRoute (spotLocation spotId) route
+    else
+        findSpotOnRoute (spotLocation spotId) route
 
 
 routeStartsFromEast : Route -> Bool

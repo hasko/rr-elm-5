@@ -43,15 +43,15 @@
 
 ## 8. Planning UI from scenario data
 
-- [ ] 8.1 Replace `SpawnPointId` enum usage with string station ids from scenario — station selector buttons generated from `scenario.stations`, labels from station `name` field
-- [ ] 8.2 Replace `initPlanningState` hardcoded inventories with stock derived from scenario station data
-- [ ] 8.3 Replace hardcoded spot names in `Programmer/Types.elm` with spot data from scenario
-- [ ] 8.4 Replace `destinationLabel` function in consist builder with a departure direction arrow indicating which end is the front — no station name
+- [x] 8.1 Replace `SpawnPointId` enum usage with string station ids from scenario — station selector buttons generated from `scenario.stations`, labels from station `name` field
+- [x] 8.2 Replace `initPlanningState` hardcoded inventories with stock derived from scenario station data
+- [x] 8.3 Replace hardcoded spot names in `Programmer/Types.elm` with spot data from scenario
+- [x] 8.4 Replace `destinationLabel` function in consist builder with a departure direction arrow indicating which end is the front — no station name
 
 ## 9. Test planning UI
 
-- [ ] 9.1 Run `npx elm-test` and `npx playwright test` — identify regressions from phase 8
-- [ ] 9.2 Fix all test failures from planning UI changes, update E2E selectors if needed
+- [x] 9.1 Run `npx elm-test` and `npx playwright test` — identify regressions from phase 8
+- [x] 9.2 Fix all test failures from planning UI changes, update E2E selectors if needed
 
 ## 10. Simulation from scenario data
 

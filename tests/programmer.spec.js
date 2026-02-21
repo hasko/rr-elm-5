@@ -110,12 +110,12 @@ test.describe('Train Programmer', () => {
     await page.getByTestId(/program-btn-/).first().click();
 
     // Add Switch Normal
-    await page.getByTestId('add-switch-main-normal').click();
-    await expect(page.getByTestId('order-item-0')).toContainText('Set main Normal');
+    await page.getByTestId('add-switch-t1-normal').click();
+    await expect(page.getByTestId('order-item-0')).toContainText('Set t1 Normal');
 
     // Add Switch Diverging
-    await page.getByTestId('add-switch-main-diverging').click();
-    await expect(page.getByTestId('order-item-1')).toContainText('Set main Diverging');
+    await page.getByTestId('add-switch-t1-diverging').click();
+    await expect(page.getByTestId('order-item-1')).toContainText('Set t1 Diverging');
   });
 
   test('Scenario 8: Add WaitSeconds orders', async ({ page }) => {
@@ -283,7 +283,7 @@ test.describe('Train Programmer', () => {
 
     // Build a realistic switching program
     // 1. Set switch to diverging
-    await page.getByTestId('add-switch-main-diverging').click();
+    await page.getByTestId('add-switch-t1-diverging').click();
 
     // 2. Set reverser to reverse
     await page.getByTestId('add-reverser-reverse').click();
@@ -298,10 +298,10 @@ test.describe('Train Programmer', () => {
     await page.getByTestId('add-reverser-forward').click();
 
     // 6. Move to East Tunnel
-    await page.getByTestId('add-moveto-easttunnel').click();
+    await page.getByTestId('add-moveto-e-portal').click();
 
     // 7. Set switch back to normal
-    await page.getByTestId('add-switch-main-normal').click();
+    await page.getByTestId('add-switch-t1-normal').click();
 
     // Verify all 7 orders
     for (let i = 0; i < 7; i++) {
@@ -309,13 +309,13 @@ test.describe('Train Programmer', () => {
     }
 
     // Verify order descriptions
-    await expect(page.getByTestId('order-item-0')).toContainText('Set main Diverging');
+    await expect(page.getByTestId('order-item-0')).toContainText('Set t1 Diverging');
     await expect(page.getByTestId('order-item-1')).toContainText('Set Reverser Reverse');
     await expect(page.getByTestId('order-item-2')).toContainText('Move To Platform');
     await expect(page.getByTestId('order-item-3')).toContainText('Wait 60 seconds');
     await expect(page.getByTestId('order-item-4')).toContainText('Set Reverser Forward');
-    await expect(page.getByTestId('order-item-5')).toContainText('Move To East Tunnel');
-    await expect(page.getByTestId('order-item-6')).toContainText('Set main Normal');
+    await expect(page.getByTestId('order-item-5')).toContainText('Move To Millville');
+    await expect(page.getByTestId('order-item-6')).toContainText('Set t1 Normal');
 
     // Save and verify persistence
     await page.getByTestId('save-program-btn').click();
@@ -325,6 +325,6 @@ test.describe('Train Programmer', () => {
     await page.getByTestId(/train-row-/).first().click();
     await page.getByTestId(/program-btn-/).first().click();
 
-    await expect(page.getByTestId('order-item-6')).toContainText('Set main Normal');
+    await expect(page.getByTestId('order-item-6')).toContainText('Set t1 Normal');
   });
 });

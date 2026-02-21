@@ -3,9 +3,9 @@ module StorageTest exposing (..)
 import Expect
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Planning.Types exposing (SpawnPointId(..), StockType(..))
+import Planning.Types exposing (StockType(..))
 import Util.GameTime as GameTime
-import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotId(..), SpotTarget(..), SwitchPosition(..))
+import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotTarget(..), SwitchPosition(..))
 import Storage exposing (SavedState, SavedTrain, decodeSavedState, encodeSavedState)
 import Test exposing (..)
 
@@ -84,7 +84,7 @@ roundTripTests =
                                         ]
                                   , position = 123.45
                                   , speed = 11.11
-                                  , spawnPoint = EastStation
+                                  , spawnPoint = "east"
                                   }
                                 ]
                         }
@@ -98,7 +98,7 @@ roundTripTests =
                                     , \_ -> List.length train.consist |> Expect.equal 2
                                     , \_ -> train.position |> Expect.within (Expect.Absolute 0.01) 123.45
                                     , \_ -> train.speed |> Expect.within (Expect.Absolute 0.01) 11.11
-                                    , \_ -> train.spawnPoint |> Expect.equal EastStation
+                                    , \_ -> train.spawnPoint |> Expect.equal "east"
                                     ]
                                     ()
 
@@ -114,12 +114,12 @@ roundTripTests =
                         { minimalState
                             | scheduledTrains =
                                 [ { id = 1
-                                  , spawnPoint = WestStation
+                                  , spawnPoint = "west"
                                   , departureTime = GameTime.fromDayHourMinute 2 14 30
                                   , consist = [ { id = 4, stockType = Boxcar, reversed = False, provisional = False } ]
                                   , program =
                                         [ SetReverser Forward
-                                        , MoveTo PlatformSpot TrainHead
+                                        , MoveTo "platform" TrainHead
                                         , WaitSeconds 30
                                         , SetSwitch "main" Diverging
                                         ]
@@ -133,7 +133,7 @@ roundTripTests =
                             Just train ->
                                 Expect.all
                                     [ \_ -> train.id |> Expect.equal 1
-                                    , \_ -> train.spawnPoint |> Expect.equal WestStation
+                                    , \_ -> train.spawnPoint |> Expect.equal "west"
                                     , \_ -> train.departureTime |> Expect.equal (GameTime.fromDayHourMinute 2 14 30)
                                     , \_ -> List.length train.program |> Expect.equal 4
                                     ]
@@ -150,14 +150,14 @@ roundTripTests =
                     state =
                         { minimalState
                             | inventories =
-                                [ { spawnPointId = EastStation
+                                [ { spawnPointId = "east"
                                   , availableStock =
                                         [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
                                         , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
                                         , { id = 3, stockType = Flatbed, reversed = False, provisional = False }
                                         ]
                                   }
-                                , { spawnPointId = WestStation
+                                , { spawnPointId = "west"
                                   , availableStock =
                                         [ { id = 4, stockType = Locomotive, reversed = False, provisional = False }
                                         , { id = 5, stockType = Boxcar, reversed = False, provisional = False }
@@ -172,13 +172,13 @@ roundTripTests =
                             [ \_ -> List.length decoded.inventories |> Expect.equal 2
                             , \_ ->
                                 decoded.inventories
-                                    |> List.filter (\inv -> inv.spawnPointId == EastStation)
+                                    |> List.filter (\inv -> inv.spawnPointId == "east")
                                     |> List.head
                                     |> Maybe.map (.availableStock >> List.length)
                                     |> Expect.equal (Just 3)
                             , \_ ->
                                 decoded.inventories
-                                    |> List.filter (\inv -> inv.spawnPointId == WestStation)
+                                    |> List.filter (\inv -> inv.spawnPointId == "west")
                                     |> List.head
                                     |> Maybe.map (.availableStock >> List.length)
                                     |> Expect.equal (Just 2)
@@ -193,7 +193,7 @@ roundTripTests =
                     state =
                         { minimalState
                             | inventories =
-                                [ { spawnPointId = EastStation
+                                [ { spawnPointId = "east"
                                   , availableStock =
                                         [ { id = 1, stockType = Locomotive, reversed = False, provisional = False }
                                         , { id = 2, stockType = PassengerCar, reversed = False, provisional = False }
@@ -217,10 +217,10 @@ roundTripTests =
             \_ ->
                 let
                     allOrders =
-                        [ MoveTo PlatformSpot TrainHead
-                        , MoveTo TeamTrackSpot TrainHead
-                        , MoveTo EastTunnelSpot TrainHead
-                        , MoveTo WestTunnelSpot TrainHead
+                        [ MoveTo "platform" TrainHead
+                        , MoveTo "team-track" TrainHead
+                        , MoveTo "e-portal" TrainHead
+                        , MoveTo "w-portal" TrainHead
                         , SetReverser Forward
                         , SetReverser Reverse
                         , SetSwitch "main" Normal
@@ -235,7 +235,7 @@ roundTripTests =
                         { minimalState
                             | scheduledTrains =
                                 [ { id = 1
-                                  , spawnPoint = EastStation
+                                  , spawnPoint = "east"
                                   , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = allOrders
@@ -315,13 +315,13 @@ roundTripTests =
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , position = 50
                                   , speed = 10
-                                  , spawnPoint = EastStation
+                                  , spawnPoint = "east"
                                   }
                                 , { id = 2
                                   , consist = [ { id = 2, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , position = 100
                                   , speed = 10
-                                  , spawnPoint = WestStation
+                                  , spawnPoint = "west"
                                   }
                                 ]
                         }
@@ -330,7 +330,7 @@ roundTripTests =
                     Ok decoded ->
                         decoded.activeTrains
                             |> List.map .spawnPoint
-                            |> Expect.equal [ EastStation, WestStation ]
+                            |> Expect.equal [ "east", "west" ]
 
                     Err err ->
                         Expect.fail ("Decode failed: " ++ Decode.errorToString err)
@@ -370,7 +370,7 @@ edgeCaseTests =
                         { minimalState
                             | scheduledTrains =
                                 [ { id = 1
-                                  , spawnPoint = EastStation
+                                  , spawnPoint = "east"
                                   , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = []
@@ -406,7 +406,7 @@ edgeCaseTests =
                         { minimalState
                             | scheduledTrains =
                                 [ { id = 1
-                                  , spawnPoint = EastStation
+                                  , spawnPoint = "east"
                                   , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = [ Couple ]
@@ -430,7 +430,7 @@ edgeCaseTests =
                         { minimalState
                             | scheduledTrains =
                                 [ { id = 1
-                                  , spawnPoint = EastStation
+                                  , spawnPoint = "east"
                                   , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                                   , program = [ Uncouple 2 ]
@@ -455,10 +455,10 @@ edgeCaseTests =
                         { minimalState
                             | scheduledTrains =
                                 [ { id = 1
-                                  , spawnPoint = EastStation
+                                  , spawnPoint = "east"
                                   , departureTime = GameTime.fromDayHourMinute 0 0 0
                                   , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                                  , program = [ SetReverser Forward, MoveTo PlatformSpot TrainHead ]
+                                  , program = [ SetReverser Forward, MoveTo "platform" TrainHead ]
                                   }
                                 ]
                         }
@@ -468,7 +468,7 @@ edgeCaseTests =
                         decoded.scheduledTrains
                             |> List.head
                             |> Maybe.map .program
-                            |> Expect.equal (Just [ SetReverser Forward, MoveTo PlatformSpot TrainHead ])
+                            |> Expect.equal (Just [ SetReverser Forward, MoveTo "platform" TrainHead ])
 
                     Err err ->
                         Expect.fail ("Decode failed: " ++ Decode.errorToString err)

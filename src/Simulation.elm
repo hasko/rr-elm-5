@@ -15,7 +15,7 @@ Each tick:
 -}
 
 import Planning.Helpers exposing (returnStockToInventory)
-import Planning.Types exposing (ScheduledTrain, SpawnPointId(..), SpawnPointInventory)
+import Planning.Types exposing (ScheduledTrain, SpawnPointInventory)
 import Programmer.Types exposing (SwitchPosition)
 import Sawmill.Layout exposing (SwitchState(..))
 import Set exposing (Set)
@@ -200,7 +200,7 @@ rebuildIfBeforeTurnout newSwitchState train =
 
 {-| Determine spawn point from route (by checking route direction).
 -}
-spawnPointForRoute : Route -> SpawnPointId
+spawnPointForRoute : Route -> String
 spawnPointForRoute route =
     -- Check first segment orientation to determine direction
     case List.head route.segments of
@@ -209,17 +209,16 @@ spawnPointForRoute route =
                 StraightGeometry geo ->
                     -- East-to-West starts heading West (positive X direction)
                     if geo.orientation > pi / 2 && geo.orientation < 3 * pi / 2 then
-                        WestStation
+                        "west"
 
                     else
-                        EastStation
+                        "east"
 
                 ArcGeometry _ ->
-                    -- Default to EastStation for arcs
-                    EastStation
+                    "east"
 
         Nothing ->
-            EastStation
+            "east"
 
 
 {-| Determine the exit spawn point for a despawning train.
@@ -232,29 +231,32 @@ Falls back to opposite-of-spawn if the route end can't be identified
 (e.g., route ends at buffer stop -- shouldn't happen for despawning trains).
 
 -}
-exitSpawnPoint : Route -> SpawnPointId
+exitSpawnPoint : Route -> String
 exitSpawnPoint route =
     case lastRouteSegment route.segments of
         Just segment ->
             if segment.elementId == Track.Element.ElementId 1 then
                 -- Route ends at mainline east (near East tunnel)
-                EastStation
+                "east"
 
             else if segment.elementId == Track.Element.ElementId 3 then
                 -- Route ends at mainline west (near West tunnel)
-                WestStation
+                "west"
 
             else
                 -- Route ends at siding or other element; fall back
-                case spawnPointForRoute route of
-                    EastStation ->
-                        WestStation
+                let
+                    spawnDir =
+                        spawnPointForRoute route
+                in
+                if spawnDir == "east" then
+                    "west"
 
-                    WestStation ->
-                        EastStation
+                else
+                    "east"
 
         Nothing ->
-            EastStation
+            "east"
 
 
 lastRouteSegment : List RouteSegment -> Maybe RouteSegment

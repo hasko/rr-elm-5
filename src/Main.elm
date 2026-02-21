@@ -16,14 +16,14 @@ import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Planning.Helpers exposing (returnStockToInventory)
-import Planning.Types as Planning exposing (PanelMode(..), SpawnPointId(..), StockItem, StockType(..))
+import Planning.Types as Planning exposing (PanelMode(..), StockItem, StockType(..))
 import Planning.Update
 import Programmer.Types as Programmer
 import Programmer.Update
 import Planning.View as PlanningView
 import Programmer.View as ProgrammerView
 import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
-import Scenario exposing (Scenario)
+import Scenario exposing (NodeType(..), Scenario)
 import Simulation
 import Sawmill.View as SawmillView
 import Set exposing (Set)
@@ -129,7 +129,7 @@ defaultModel scenario =
     , viewportSize = { width = 800, height = 600 }
     , turnoutState = Normal
     , hoveredElement = Nothing
-    , planningState = Planning.initPlanningState
+    , planningState = Planning.initPlanningState scenario.stations
     , activeTrains = []
     , spawnedTrainIds = Set.empty
     , timeMultiplier = 1.0
@@ -156,7 +156,7 @@ type Msg
     | ResetGame
       -- Planning panel messages
     | ClosePlanningPanel
-    | SelectSpawnPoint SpawnPointId
+    | SelectSpawnPoint String
     | SelectStockItem StockItem
     | AddToConsistFront -- Add selected stock to front
     | AddToConsistBack -- Add selected stock to back
@@ -314,27 +314,27 @@ update msg model =
                     ( { model | turnoutState = newState, activeTrains = rebuiltTrains }, Cmd.none )
 
                 TunnelPortalId ->
-                    -- Open planning panel with West Station selected (left/west portal)
+                    -- Open planning panel with West station selected (left/west portal)
                     let
                         planning =
                             model.planningState
                     in
                     ( { model
                         | mode = Planning
-                        , planningState = { planning | selectedSpawnPoint = WestStation }
+                        , planningState = { planning | selectedSpawnPoint = "west" }
                       }
                     , Cmd.none
                     )
 
                 WestTunnelPortalId ->
-                    -- Open planning panel with East Station selected (right/east portal)
+                    -- Open planning panel with East station selected (right/east portal)
                     let
                         planning =
                             model.planningState
                     in
                     ( { model
                         | mode = Planning
-                        , planningState = { planning | selectedSpawnPoint = EastStation }
+                        , planningState = { planning | selectedSpawnPoint = "east" }
                       }
                     , Cmd.none
                     )
@@ -762,6 +762,7 @@ viewRightPanel model =
         PlanningView ->
             PlanningView.viewPlanningPanel
                 { state = model.planningState
+                , stations = model.scenario.stations
                 , onClose = ClosePlanningPanel
                 , onSelectSpawnPoint = SelectSpawnPoint
                 , onSelectStock = SelectStockItem
@@ -790,6 +791,9 @@ viewRightPanel model =
                     ProgrammerView.viewProgrammerPanel
                         { state = progState
                         , trainId = trainId
+                        , spots = scenarioSpots model.scenario
+                        , switches = scenarioSwitches model.scenario
+                        , spotNameFn = scenarioSpotName model.scenario
                         , onBack = CloseProgrammer
                         , onSave = SaveProgram
                         , onAddOrder = AddOrder
@@ -802,6 +806,102 @@ viewRightPanel model =
                 Nothing ->
                     -- Should not happen, but fallback to planning view
                     text "Error: No programmer state"
+
+
+{-| Build spot info list from scenario data for the programmer view.
+Includes edge spots and station portal spots.
+-}
+scenarioSpots : Scenario -> List ProgrammerView.SpotInfo
+scenarioSpots scenario =
+    let
+        edgeSpots =
+            scenario.track.edges
+                |> List.concatMap .spots
+                |> List.map
+                    (\spot ->
+                        { id = spot.id
+                        , name = spot.name
+                        , shortName = abbreviate spot.name
+                        }
+                    )
+
+        portalSpots =
+            scenario.stations
+                |> List.map
+                    (\station ->
+                        { id = station.portal
+                        , name = station.name
+                        , shortName = abbreviate station.name
+                        }
+                    )
+    in
+    edgeSpots ++ portalSpots
+
+
+{-| Build switch info list from scenario turnout nodes.
+-}
+scenarioSwitches : Scenario -> List ProgrammerView.SwitchInfo
+scenarioSwitches scenario =
+    scenario.track.nodes
+        |> List.filterMap
+            (\node ->
+                case node.nodeType of
+                    Turnout _ ->
+                        Just { id = node.id, label = node.id }
+
+                    _ ->
+                        Nothing
+            )
+
+
+{-| Build a spot name lookup function from scenario data.
+-}
+scenarioSpotName : Scenario -> String -> String
+scenarioSpotName scenario spotId =
+    let
+        edgeSpot =
+            scenario.track.edges
+                |> List.concatMap .spots
+                |> List.filter (\s -> s.id == spotId)
+                |> List.head
+                |> Maybe.map .name
+
+        stationPortal =
+            scenario.stations
+                |> List.filter (\s -> s.portal == spotId)
+                |> List.head
+                |> Maybe.map .name
+    in
+    case edgeSpot of
+        Just name ->
+            name
+
+        Nothing ->
+            case stationPortal of
+                Just name ->
+                    name
+
+                Nothing ->
+                    spotId
+
+
+{-| Abbreviate a name to a short label (max ~4 chars).
+-}
+abbreviate : String -> String
+abbreviate name =
+    let
+        words =
+            String.words name
+    in
+    case words of
+        [ single ] ->
+            String.left 4 single
+
+        first :: _ ->
+            String.left 4 first
+
+        [] ->
+            name
 
 
 viewTrainInfoPanel : Model -> Int -> Html Msg
@@ -832,7 +932,7 @@ viewTrainInfoPanel model trainId =
                             Just order ->
                                 String.fromInt (train.programCounter + 1)
                                     ++ ". "
-                                    ++ Programmer.orderDescription order
+                                    ++ Programmer.orderDescription (scenarioSpotName model.scenario) order
 
                             Nothing ->
                                 "Program complete"

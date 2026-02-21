@@ -1,6 +1,5 @@
 module Programmer.Types exposing
-    ( SpotId(..)
-    , SpotTarget(..)
+    ( SpotTarget(..)
     , ReverserPosition(..)
     , SwitchPosition(..)
     , Order(..)
@@ -9,20 +8,10 @@ module Programmer.Types exposing
     , emptyProgram
     , initProgrammerState
     , orderDescription
-    , spotName
     )
 
 {-| Types for the train programmer system.
 -}
-
-
-{-| Named spots that can be targets for MoveTo orders.
--}
-type SpotId
-    = PlatformSpot
-    | TeamTrackSpot
-    | EastTunnelSpot
-    | WestTunnelSpot
 
 
 {-| Reverser positions for locomotive direction control.
@@ -49,9 +38,10 @@ type SpotTarget
 
 
 {-| Train orders - explicit commands that trains execute sequentially.
+Spot IDs are strings matching scenario spot IDs or portal node IDs.
 -}
 type Order
-    = MoveTo SpotId SpotTarget
+    = MoveTo String SpotTarget
     | SetReverser ReverserPosition
     | SetSwitch String SwitchPosition
     | WaitSeconds Int
@@ -91,36 +81,19 @@ initProgrammerState trainId existingProgram =
     }
 
 
-{-| Get display name for a spot.
--}
-spotName : SpotId -> String
-spotName spot =
-    case spot of
-        PlatformSpot ->
-            "Platform"
-
-        TeamTrackSpot ->
-            "Team Track"
-
-        EastTunnelSpot ->
-            "East Tunnel"
-
-        WestTunnelSpot ->
-            "West Tunnel"
-
-
 {-| Get description for an order.
+The spotName function is passed in to resolve spot ID strings to display names.
 -}
-orderDescription : Order -> String
-orderDescription order =
+orderDescription : (String -> String) -> Order -> String
+orderDescription spotNameFn order =
     case order of
-        MoveTo spot target ->
+        MoveTo spotId target ->
             case target of
                 TrainHead ->
-                    "Move To " ++ spotName spot
+                    "Move To " ++ spotNameFn spotId
 
                 SpotCar carIndex ->
-                    "Spot Car " ++ String.fromInt (carIndex + 1) ++ " at " ++ spotName spot
+                    "Spot Car " ++ String.fromInt (carIndex + 1) ++ " at " ++ spotNameFn spotId
 
         SetReverser Forward ->
             "Set Reverser Forward"
