@@ -8,17 +8,21 @@ Main entry point and application shell.
 
 import Browser
 import Browser.Events
+import Camera
 import Html exposing (Html, button, div, span, text)
 import Html.Attributes exposing (disabled, style)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Planning.Helpers exposing (returnStockToInventory, takeStockFromInventory)
+import Planning.Helpers exposing (returnStockToInventory)
 import Planning.Types as Planning exposing (PanelMode(..), SpawnPointId(..), StockItem, StockType(..))
+import Planning.Update
 import Programmer.Types as Programmer
+import Programmer.Update
 import Planning.View as PlanningView
 import Programmer.View as ProgrammerView
 import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
+import Simulation
 import Sawmill.View as SawmillView
 import Set exposing (Set)
 import Storage
@@ -26,12 +30,7 @@ import Svg exposing (Svg, svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
 import Time
-import Track.Element
-import Train.Execution as Execution
-import Train.Movement as Movement
-import Train.Route as Route
-import Train.Spawn as Spawn
-import Train.Types exposing (ActiveTrain, Effect(..), TrainState(..))
+import Train.Types exposing (ActiveTrain, TrainState(..))
 import Train.View as TrainView
 import Util.GameTime as GameTime exposing (GameTime)
 import Util.Vec2 as Vec2 exposing (Vec2)
@@ -71,30 +70,15 @@ type GameMode
     | Paused
 
 
-type alias Camera =
-    { center : Vec2 -- World coordinates
-    , zoom : Float -- Pixels per meter
-    }
-
-
-type alias DragState =
-    { startScreenPos : Vec2 -- Screen position where drag started
-    , startCameraCenter : Vec2 -- Camera center when drag started
-    }
-
-
 type alias Model =
     { mode : GameMode
     , gameTime : GameTime
-    , camera : Camera
+    , cameraState : Camera.CameraState
     , viewportSize : { width : Float, height : Float }
 
     -- Sawmill puzzle state
     , turnoutState : SwitchState
     , hoveredElement : Maybe ElementId
-
-    -- Panning state
-    , dragState : Maybe DragState
 
     -- Planning state
     , planningState : Planning.PlanningState
@@ -131,14 +115,16 @@ defaultModel : Model
 defaultModel =
     { mode = Planning
     , gameTime = GameTime.fromHourMinute 6 0
-    , camera =
-        { center = Vec2.vec2 -50 60
-        , zoom = 2.0 -- 2 pixels per meter
+    , cameraState =
+        { camera =
+            { center = Vec2.vec2 -50 60
+            , zoom = 2.0 -- 2 pixels per meter
+            }
+        , dragState = Nothing
         }
     , viewportSize = { width = 800, height = 600 }
     , turnoutState = Normal
     , hoveredElement = Nothing
-    , dragState = Nothing
     , planningState = Planning.initPlanningState
     , activeTrains = []
     , spawnedTrainIds = Set.empty
@@ -204,14 +190,16 @@ restoreModel saved =
     in
     { mode = mode
     , gameTime = saved.gameTime
-    , camera =
-        { center = Vec2.vec2 saved.cameraX saved.cameraY
-        , zoom = saved.cameraZoom
+    , cameraState =
+        { camera =
+            { center = Vec2.vec2 saved.cameraX saved.cameraY
+            , zoom = saved.cameraZoom
+            }
+        , dragState = Nothing
         }
     , viewportSize = { width = 800, height = 600 }
     , turnoutState = turnoutState
     , hoveredElement = Nothing
-    , dragState = Nothing
     , planningState = planningState
     , activeTrains = activeTrains
     , spawnedTrainIds = Set.fromList saved.spawnedTrainIds
@@ -231,10 +219,7 @@ type Msg
     | ElementHovered ElementId
     | ElementUnhovered
     | ElementClicked ElementId
-    | StartDrag Float Float -- Screen x, y where mousedown occurred
-    | Drag Float Float -- Current screen x, y during drag
-    | EndDrag -- Mouseup or mouseleave
-    | Zoom Float Float Float -- deltaY, mouseX, mouseY in screen coords
+    | CameraMsg Camera.CameraMsg
     | SetTimeMultiplier Float
     | NoOp
       -- Storage messages
@@ -279,117 +264,30 @@ update msg model =
         Tick deltaMs ->
             if model.mode == Running then
                 let
-                    -- Cap delta to prevent teleportation when returning from background tab
-                    cappedDeltaMs =
-                        min deltaMs 100
+                    simState =
+                        { timeMultiplier = model.timeMultiplier
+                        , gameTime = model.gameTime
+                        , activeTrains = model.activeTrains
+                        , spawnedTrainIds = model.spawnedTrainIds
+                        , scheduledTrains = model.planningState.scheduledTrains
+                        , inventories = model.planningState.inventories
+                        , turnoutState = model.turnoutState
+                        , selectedTrainId = model.selectedTrainId
+                        }
 
-                    -- Apply time multiplier
-                    scaledDeltaSeconds =
-                        (cappedDeltaMs / 1000) * model.timeMultiplier
-
-                    -- Advance simulation time
-                    newElapsed =
-                        model.gameTime + scaledDeltaSeconds
-
-                    -- Spawn new trains
-                    newTrains =
-                        Spawn.checkSpawns
-                            newElapsed
-                            model.planningState.scheduledTrains
-                            model.spawnedTrainIds
-                            model.turnoutState
-
-                    -- Execute programs and update positions
-                    executedResults =
-                        model.activeTrains
-                            |> List.map (Execution.stepProgram scaledDeltaSeconds)
-
-                    executedTrains =
-                        List.map Tuple.first executedResults
-
-                    -- Collect all effects from execution
-                    allEffects =
-                        List.concatMap Tuple.second executedResults
-
-                    -- Apply switch effects to turnout state
-                    newTurnoutState =
-                        List.foldl applySwitchEffect model.turnoutState allEffects
-
-                    -- Rebuild routes if turnout state changed, but only for trains
-                    -- that haven't passed the turnout yet (to prevent position jumps)
-                    routeRebuiltTrains =
-                        if newTurnoutState /= model.turnoutState then
-                            List.map (rebuildIfBeforeTurnout newTurnoutState) executedTrains
-
-                        else
-                            executedTrains
-
-                    -- Move trains that are still using simple movement (no program).
-                    -- Trains with programs are fully handled by stepProgram
-                    -- (including coasting to stop after program completion).
-                    movedTrains =
-                        routeRebuiltTrains
-                            |> List.map
-                                (\t ->
-                                    if List.isEmpty t.program then
-                                        Movement.updateTrain scaledDeltaSeconds t
-
-                                    else
-                                        t
-                                )
-
-                    -- Separate despawning trains from surviving trains
-                    despawningTrains =
-                        List.filter Movement.shouldDespawn movedTrains
-
-                    updatedTrains =
-                        List.filter (not << Movement.shouldDespawn) movedTrains
-
-                    -- Return despawned trains' consist items to exit station inventory
-                    newInventories =
-                        List.foldl
-                            (\train invs ->
-                                let
-                                    exitStation =
-                                        exitSpawnPoint train.route
-                                in
-                                returnStockToInventory exitStation train.consist invs
-                            )
-                            model.planningState.inventories
-                            despawningTrains
+                    result =
+                        Simulation.tick deltaMs simState
 
                     planning =
                         model.planningState
-
-                    -- Combine trains
-                    allTrains =
-                        updatedTrains ++ newTrains
-
-                    -- Track newly spawned IDs
-                    newSpawnedIds =
-                        Set.union model.spawnedTrainIds
-                            (Set.fromList (List.map .id newTrains))
-
-                    -- Auto-deselect if selected train despawned
-                    newSelectedTrainId =
-                        case model.selectedTrainId of
-                            Just id ->
-                                if List.any (\t -> t.id == id) allTrains then
-                                    Just id
-
-                                else
-                                    Nothing
-
-                            Nothing ->
-                                Nothing
                 in
                 ( { model
-                    | gameTime = newElapsed
-                    , activeTrains = allTrains
-                    , spawnedTrainIds = newSpawnedIds
-                    , planningState = { planning | inventories = newInventories }
-                    , turnoutState = newTurnoutState
-                    , selectedTrainId = newSelectedTrainId
+                    | gameTime = result.gameTime
+                    , activeTrains = result.activeTrains
+                    , spawnedTrainIds = result.spawnedTrainIds
+                    , planningState = { planning | inventories = result.inventories }
+                    , turnoutState = result.turnoutState
+                    , selectedTrainId = result.selectedTrainId
                   }
                 , Cmd.none
                 )
@@ -434,7 +332,7 @@ update msg model =
                                     Normal
 
                         rebuiltTrains =
-                            List.map (rebuildIfBeforeTurnout newState) model.activeTrains
+                            List.map (Simulation.rebuildIfBeforeTurnout newState) model.activeTrains
                     in
                     ( { model | turnoutState = newState, activeTrains = rebuiltTrains }, Cmd.none )
 
@@ -467,94 +365,10 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        StartDrag screenX screenY ->
-            ( { model
-                | dragState =
-                    Just
-                        { startScreenPos = Vec2.vec2 screenX screenY
-                        , startCameraCenter = model.camera.center
-                        }
-              }
+        CameraMsg camMsg ->
+            ( { model | cameraState = Camera.update model.viewportSize camMsg model.cameraState }
             , Cmd.none
             )
-
-        Drag screenX screenY ->
-            case model.dragState of
-                Just drag ->
-                    let
-                        -- Calculate screen delta
-                        deltaScreenX =
-                            screenX - drag.startScreenPos.x
-
-                        deltaScreenY =
-                            screenY - drag.startScreenPos.y
-
-                        -- Convert to world delta (divide by zoom)
-                        deltaWorldX =
-                            deltaScreenX / model.camera.zoom
-
-                        deltaWorldY =
-                            deltaScreenY / model.camera.zoom
-
-                        -- Move camera opposite to drag direction
-                        newCenter =
-                            Vec2.vec2
-                                (drag.startCameraCenter.x - deltaWorldX)
-                                (drag.startCameraCenter.y - deltaWorldY)
-
-                        newCamera =
-                            { center = newCenter, zoom = model.camera.zoom }
-                    in
-                    ( { model | camera = newCamera }, Cmd.none )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
-        EndDrag ->
-            ( { model | dragState = Nothing }, Cmd.none )
-
-        Zoom deltaY mouseX mouseY ->
-            let
-                -- Zoom factor: scroll up = zoom in, scroll down = zoom out
-                zoomFactor =
-                    if deltaY < 0 then
-                        1.1
-
-                    else
-                        1 / 1.1
-
-                oldZoom =
-                    model.camera.zoom
-
-                newZoom =
-                    clamp 0.5 10.0 (oldZoom * zoomFactor)
-
-                -- Convert mouse screen position to world coordinates (before zoom)
-                halfWidth =
-                    model.viewportSize.width / 2
-
-                halfHeight =
-                    model.viewportSize.height / 2
-
-                worldX =
-                    model.camera.center.x + (mouseX - halfWidth) / oldZoom
-
-                worldY =
-                    model.camera.center.y + (mouseY - halfHeight) / oldZoom
-
-                -- Adjust camera center so the world point under mouse stays fixed
-                newCenterX =
-                    worldX - (mouseX - halfWidth) / newZoom
-
-                newCenterY =
-                    worldY - (mouseY - halfHeight) / newZoom
-
-                newCamera =
-                    { center = Vec2.vec2 newCenterX newCenterY
-                    , zoom = newZoom
-                    }
-            in
-            ( { model | camera = newCamera }, Cmd.none )
 
         SetTimeMultiplier multiplier ->
             ( { model | timeMultiplier = multiplier }, Cmd.none )
@@ -591,16 +405,16 @@ update msg model =
             )
 
         AddToConsistFront ->
-            ( updateAddToConsist True model, Cmd.none )
+            ( { model | planningState = Planning.Update.addToConsist True model.planningState }, Cmd.none )
 
         AddToConsistBack ->
-            ( updateAddToConsist False model, Cmd.none )
+            ( { model | planningState = Planning.Update.addToConsist False model.planningState }, Cmd.none )
 
         InsertInConsist index ->
-            ( updateInsertInConsist index model, Cmd.none )
+            ( { model | planningState = Planning.Update.insertInConsist index model.planningState }, Cmd.none )
 
         RemoveFromConsist index ->
-            ( updateRemoveFromConsist index model, Cmd.none )
+            ( { model | planningState = Planning.Update.removeFromConsist index model.planningState }, Cmd.none )
 
         ClearConsistBuilder ->
             let
@@ -734,37 +548,37 @@ update msg model =
             )
 
         ScheduleTrain ->
-            ( updateScheduleTrain model, Cmd.none )
+            ( { model | planningState = Planning.Update.scheduleTrain model.planningState }, Cmd.none )
 
         RemoveScheduledTrain trainId ->
-            ( updateRemoveScheduledTrain trainId model, Cmd.none )
+            ( { model | planningState = Planning.Update.removeScheduledTrain trainId model.planningState }, Cmd.none )
 
         SelectScheduledTrain trainId ->
-            ( updateSelectScheduledTrain trainId model, Cmd.none )
+            ( { model | planningState = Planning.Update.selectScheduledTrain trainId model.planningState }, Cmd.none )
 
         OpenProgrammer trainId ->
-            ( updateOpenProgrammer trainId model, Cmd.none )
+            ( { model | planningState = Programmer.Update.openProgrammer trainId model.planningState }, Cmd.none )
 
         CloseProgrammer ->
-            ( updateCloseProgrammer model, Cmd.none )
+            ( { model | planningState = Programmer.Update.closeProgrammer model.planningState }, Cmd.none )
 
         AddOrder order ->
-            ( updateAddOrder order model, Cmd.none )
+            ( { model | planningState = Programmer.Update.addOrder order model.planningState }, Cmd.none )
 
         RemoveOrder index ->
-            ( updateRemoveOrder index model, Cmd.none )
+            ( { model | planningState = Programmer.Update.removeOrder index model.planningState }, Cmd.none )
 
         MoveOrderUp index ->
-            ( updateMoveOrderUp index model, Cmd.none )
+            ( { model | planningState = Programmer.Update.moveOrderUp index model.planningState }, Cmd.none )
 
         MoveOrderDown index ->
-            ( updateMoveOrderDown index model, Cmd.none )
+            ( { model | planningState = Programmer.Update.moveOrderDown index model.planningState }, Cmd.none )
 
         SelectProgramOrder index ->
-            ( updateSelectProgramOrder index model, Cmd.none )
+            ( { model | planningState = Programmer.Update.selectProgramOrder index model.planningState }, Cmd.none )
 
         SaveProgram ->
-            ( updateSaveProgram model, Cmd.none )
+            ( { model | planningState = Programmer.Update.saveProgram model.planningState }, Cmd.none )
 
         TrainClicked trainId ->
             ( { model | selectedTrainId = Just trainId }, Cmd.none )
@@ -777,47 +591,6 @@ update msg model =
 
         ResetGame ->
             ( model, clearStorage () )
-
-
-
--- EFFECT HELPERS
-
-
-{-| Apply a switch effect to the turnout state.
--}
-applySwitchEffect : Effect -> SwitchState -> SwitchState
-applySwitchEffect effect currentState =
-    case effect of
-        SetSwitchEffect _ pos ->
-            case pos of
-                Programmer.Normal ->
-                    Normal
-
-                Programmer.Diverging ->
-                    Reverse
-
-
-
-{-| Rebuild a train's route only if the train hasn't passed the turnout yet.
-
-Trains past the turnout keep their existing route to prevent position jumps
-when the switch changes — the same position value would map to a different
-physical location on the new route.
-
--}
-rebuildIfBeforeTurnout : SwitchState -> ActiveTrain -> ActiveTrain
-rebuildIfBeforeTurnout newSwitchState train =
-    case Route.turnoutStartDistance train.route of
-        Just turnoutDist ->
-            if train.position < turnoutDist then
-                { train | route = Route.rebuildRoute train.spawnPoint newSwitchState }
-
-            else
-                train
-
-        Nothing ->
-            -- Turnout not on this route, rebuild is safe
-            { train | route = Route.rebuildRoute train.spawnPoint newSwitchState }
 
 
 
@@ -875,615 +648,13 @@ extractSavedState model =
             , scheduledTrains = model.planningState.scheduledTrains
             , inventories = model.planningState.inventories
             , nextTrainId = model.planningState.nextTrainId
-            , cameraX = model.camera.center.x
-            , cameraY = model.camera.center.y
-            , cameraZoom = model.camera.zoom
+            , cameraX = model.cameraState.camera.center.x
+            , cameraY = model.cameraState.camera.center.y
+            , cameraZoom = model.cameraState.camera.zoom
             , timeMultiplier = model.timeMultiplier
             }
     in
     Storage.encodeSavedState savedState
-
-
-{-| Determine spawn point from route (by checking route direction).
--}
-spawnPointForRoute : Train.Types.Route -> SpawnPointId
-spawnPointForRoute route =
-    -- Check first segment orientation to determine direction
-    case List.head route.segments of
-        Just segment ->
-            case segment.geometry of
-                Train.Types.StraightGeometry geo ->
-                    -- East-to-West starts heading West (positive X direction)
-                    if geo.orientation > pi / 2 && geo.orientation < 3 * pi / 2 then
-                        WestStation
-
-                    else
-                        EastStation
-
-                Train.Types.ArcGeometry _ ->
-                    -- Default to EastStation for arcs
-                    EastStation
-
-        Nothing ->
-            EastStation
-
-
-{-| Determine the exit spawn point for a despawning train.
-
-Checks which tunnel the route ends at (the last segment's element ID).
-A train that reversed and returned to its origin will have a rebuilt route
-whose last segment is near the origin tunnel, so stock returns correctly.
-
-Falls back to opposite-of-spawn if the route end can't be identified
-(e.g., route ends at buffer stop -- shouldn't happen for despawning trains).
--}
-exitSpawnPoint : Train.Types.Route -> SpawnPointId
-exitSpawnPoint route =
-    case lastRouteSegment route.segments of
-        Just segment ->
-            if segment.elementId == Track.Element.ElementId 1 then
-                -- Route ends at mainline east (near East tunnel)
-                EastStation
-
-            else if segment.elementId == Track.Element.ElementId 3 then
-                -- Route ends at mainline west (near West tunnel)
-                WestStation
-
-            else
-                -- Route ends at siding or other element; fall back
-                case spawnPointForRoute route of
-                    EastStation ->
-                        WestStation
-
-                    WestStation ->
-                        EastStation
-
-        Nothing ->
-            EastStation
-
-
-lastRouteSegment : List Train.Types.RouteSegment -> Maybe Train.Types.RouteSegment
-lastRouteSegment segments =
-    case segments of
-        [] ->
-            Nothing
-
-        [ x ] ->
-            Just x
-
-        _ :: rest ->
-            lastRouteSegment rest
-
-
-
--- PLANNING HELPERS
-
-
-{-| Add selected stock item to consist (front or back).
--}
-updateAddToConsist : Bool -> Model -> Model
-updateAddToConsist toFront model =
-    let
-        planning =
-            model.planningState
-
-        builder =
-            planning.consistBuilder
-    in
-    case builder.selectedStock of
-        Nothing ->
-            model
-
-        Just selectedStock ->
-            let
-                -- Try to take one item of this type from inventory
-                ( maybeActualStock, newInventories ) =
-                    takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
-
-                -- If not available, create a provisional item
-                ( stockToAdd, finalInventories, finalProvisionalId ) =
-                    case maybeActualStock of
-                        Just actualStock ->
-                            ( actualStock, newInventories, planning.nextProvisionalId )
-
-                        Nothing ->
-                            ( { id = planning.nextProvisionalId
-                              , stockType = selectedStock.stockType
-                              , reversed = False
-                              , provisional = True
-                              }
-                            , planning.inventories
-                            , planning.nextProvisionalId - 1
-                            )
-
-                -- Add to front or back
-                newItems =
-                    if toFront then
-                        stockToAdd :: builder.items
-
-                    else
-                        builder.items ++ [ stockToAdd ]
-
-                newBuilder =
-                    { builder | items = newItems, selectedStock = builder.selectedStock }
-            in
-            { model
-                | planningState =
-                    { planning
-                        | consistBuilder = newBuilder
-                        , inventories = finalInventories
-                        , nextProvisionalId = finalProvisionalId
-                    }
-            }
-
-
-{-| Insert selected stock into consist at specified index.
--}
-updateInsertInConsist : Int -> Model -> Model
-updateInsertInConsist index model =
-    let
-        planning =
-            model.planningState
-
-        builder =
-            planning.consistBuilder
-    in
-    case builder.selectedStock of
-        Nothing ->
-            model
-
-        Just selectedStock ->
-            let
-                -- Try to take one item of this type from inventory
-                ( maybeActualStock, newInventories ) =
-                    takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
-
-                -- If not available, create a provisional item
-                ( stockToAdd, finalInventories, finalProvisionalId ) =
-                    case maybeActualStock of
-                        Just actualStock ->
-                            ( actualStock, newInventories, planning.nextProvisionalId )
-
-                        Nothing ->
-                            ( { id = planning.nextProvisionalId
-                              , stockType = selectedStock.stockType
-                              , reversed = False
-                              , provisional = True
-                              }
-                            , planning.inventories
-                            , planning.nextProvisionalId - 1
-                            )
-
-                -- Insert at specified index
-                newItems =
-                    List.take index builder.items
-                        ++ [ stockToAdd ]
-                        ++ List.drop index builder.items
-
-                newBuilder =
-                    { builder | items = newItems, selectedStock = builder.selectedStock }
-            in
-            { model
-                | planningState =
-                    { planning
-                        | consistBuilder = newBuilder
-                        , inventories = finalInventories
-                        , nextProvisionalId = finalProvisionalId
-                    }
-            }
-
-
-{-| Remove stock from consist at index and return to inventory.
--}
-updateRemoveFromConsist : Int -> Model -> Model
-updateRemoveFromConsist index model =
-    let
-        planning =
-            model.planningState
-
-        builder =
-            planning.consistBuilder
-
-        maybeStock =
-            builder.items
-                |> List.drop index
-                |> List.head
-    in
-    case maybeStock of
-        Nothing ->
-            model
-
-        Just stock ->
-            let
-                newItems =
-                    List.take index builder.items ++ List.drop (index + 1) builder.items
-
-                newInventories =
-                    returnStockToInventory planning.selectedSpawnPoint [ stock ] planning.inventories
-
-                newBuilder =
-                    { builder | items = newItems }
-            in
-            { model
-                | planningState =
-                    { planning
-                        | consistBuilder = newBuilder
-                        , inventories = newInventories
-                    }
-            }
-
-
-{-| Schedule a train with the current consist (or update existing train).
--}
-updateScheduleTrain : Model -> Model
-updateScheduleTrain model =
-    let
-        planning =
-            model.planningState
-
-        builder =
-            planning.consistBuilder
-
-        -- Extract consist from builder items
-        consist =
-            builder.items
-
-        -- Check validation: must have items and at least one locomotive
-        hasLoco =
-            List.any (\item -> item.stockType == Locomotive) consist
-    in
-    if List.isEmpty consist || not hasLoco then
-        -- Don't schedule empty trains or trains without locomotive
-        model
-
-    else
-        case planning.editingTrainId of
-            Just trainId ->
-                -- Update existing train - recreate it with new data
-                let
-                    updatedTrain =
-                        { id = trainId
-                        , spawnPoint = planning.selectedSpawnPoint
-                        , departureTime = GameTime.fromDayHourMinute planning.timePickerDay planning.timePickerHour planning.timePickerMinute
-                        , consist = consist
-                        , program = planning.editingTrainProgram
-                        }
-                in
-                { model
-                    | planningState =
-                        { planning
-                            | scheduledTrains = planning.scheduledTrains ++ [ updatedTrain ]
-                            , consistBuilder = Planning.emptyConsistBuilder
-                            , editingTrainId = Nothing
-                            , editingTrainProgram = Programmer.emptyProgram
-                        }
-                }
-
-            Nothing ->
-                -- Create new train
-                let
-                    newTrain =
-                        { id = planning.nextTrainId
-                        , spawnPoint = planning.selectedSpawnPoint
-                        , departureTime = GameTime.fromDayHourMinute planning.timePickerDay planning.timePickerHour planning.timePickerMinute
-                        , consist = consist
-                        , program = Programmer.emptyProgram
-                        }
-                in
-                { model
-                    | planningState =
-                        { planning
-                            | scheduledTrains = planning.scheduledTrains ++ [ newTrain ]
-                            , consistBuilder = Planning.emptyConsistBuilder
-                            , nextTrainId = planning.nextTrainId + 1
-                        }
-                }
-
-
-{-| Load a scheduled train into the consist builder for editing.
--}
-updateSelectScheduledTrain : Int -> Model -> Model
-updateSelectScheduledTrain trainId model =
-    let
-        planning =
-            model.planningState
-
-        maybeTrain =
-            planning.scheduledTrains
-                |> List.filter (\t -> t.id == trainId)
-                |> List.head
-    in
-    case maybeTrain of
-        Nothing ->
-            model
-
-        Just train ->
-            let
-                -- First return any current builder items to inventory
-                currentItems =
-                    planning.consistBuilder.items
-
-                newInventories =
-                    returnStockToInventory planning.selectedSpawnPoint currentItems planning.inventories
-
-                -- Keep train in scheduled list but mark as being edited
-                -- Stock remains "in use" by the train, not returned to inventory
-                newTrains =
-                    planning.scheduledTrains
-                        |> List.filter (\t -> t.id /= trainId)
-
-                -- Load consist into builder
-                newBuilder =
-                    { items = train.consist
-                    , selectedStock = Nothing
-                    }
-
-                ( pickerDay, pickerHour, pickerMinute ) =
-                    GameTime.toDayHourMinute train.departureTime
-            in
-            { model
-                | planningState =
-                    { planning
-                        | selectedSpawnPoint = train.spawnPoint
-                        , scheduledTrains = newTrains
-                        , inventories = newInventories
-                        , consistBuilder = newBuilder
-                        , timePickerDay = pickerDay
-                        , timePickerHour = pickerHour
-                        , timePickerMinute = pickerMinute
-                        , editingTrainId = Just trainId
-                        , editingTrainProgram = train.program
-                    }
-            }
-
-
-{-| Remove a scheduled train and return its stock to inventory.
--}
-updateRemoveScheduledTrain : Int -> Model -> Model
-updateRemoveScheduledTrain trainId model =
-    let
-        planning =
-            model.planningState
-
-        maybeTrain =
-            planning.scheduledTrains
-                |> List.filter (\t -> t.id == trainId)
-                |> List.head
-    in
-    case maybeTrain of
-        Nothing ->
-            model
-
-        Just train ->
-            let
-                newTrains =
-                    planning.scheduledTrains
-                        |> List.filter (\t -> t.id /= trainId)
-
-                newInventories =
-                    returnStockToInventory train.spawnPoint train.consist planning.inventories
-            in
-            { model
-                | planningState =
-                    { planning
-                        | scheduledTrains = newTrains
-                        , inventories = newInventories
-                    }
-            }
-
-
-
--- PROGRAMMER HELPERS
-
-
-{-| Open the programmer for a train.
--}
-updateOpenProgrammer : Int -> Model -> Model
-updateOpenProgrammer trainId model =
-    let
-        planning =
-            model.planningState
-    in
-    -- Only open programmer if we're editing this train
-    case planning.editingTrainId of
-        Just editId ->
-            if editId == trainId then
-                { model
-                    | planningState =
-                        { planning
-                            | panelMode = ProgrammerView trainId
-                            , programmerState =
-                                Just (Programmer.initProgrammerState trainId planning.editingTrainProgram)
-                        }
-                }
-
-            else
-                model
-
-        Nothing ->
-            model
-
-
-{-| Close the programmer without saving.
--}
-updateCloseProgrammer : Model -> Model
-updateCloseProgrammer model =
-    let
-        planning =
-            model.planningState
-    in
-    { model
-        | planningState =
-            { planning
-                | panelMode = PlanningView
-                , programmerState = Nothing
-            }
-    }
-
-
-{-| Save the program and close the programmer.
-    This also saves the entire train back to scheduledTrains.
--}
-updateSaveProgram : Model -> Model
-updateSaveProgram model =
-    let
-        planning =
-            model.planningState
-    in
-    case ( planning.programmerState, planning.editingTrainId ) of
-        ( Just progState, Just trainId ) ->
-            let
-                -- Reconstruct the train with current editing data and new program
-                savedTrain =
-                    { id = trainId
-                    , spawnPoint = planning.selectedSpawnPoint
-                    , departureTime = GameTime.fromDayHourMinute planning.timePickerDay planning.timePickerHour planning.timePickerMinute
-                    , consist = planning.consistBuilder.items
-                    , program = progState.program
-                    }
-            in
-            { model
-                | planningState =
-                    { planning
-                        | scheduledTrains = planning.scheduledTrains ++ [ savedTrain ]
-                        , consistBuilder = Planning.emptyConsistBuilder
-                        , editingTrainId = Nothing
-                        , editingTrainProgram = Programmer.emptyProgram
-                        , panelMode = PlanningView
-                        , programmerState = Nothing
-                    }
-            }
-
-        _ ->
-            model
-
-
-{-| Add an order to the program.
--}
-updateAddOrder : Programmer.Order -> Model -> Model
-updateAddOrder order model =
-    updateProgrammerState model
-        (\progState ->
-            { progState | program = progState.program ++ [ order ] }
-        )
-
-
-{-| Remove an order from the program.
--}
-updateRemoveOrder : Int -> Model -> Model
-updateRemoveOrder index model =
-    updateProgrammerState model
-        (\progState ->
-            { progState
-                | program = removeAt index progState.program
-                , selectedOrderIndex = Nothing
-            }
-        )
-
-
-{-| Move an order up in the program.
--}
-updateMoveOrderUp : Int -> Model -> Model
-updateMoveOrderUp index model =
-    if index > 0 then
-        updateProgrammerState model
-            (\progState ->
-                { progState
-                    | program = swapAt (index - 1) index progState.program
-                    , selectedOrderIndex = Just (index - 1)
-                }
-            )
-
-    else
-        model
-
-
-{-| Move an order down in the program.
--}
-updateMoveOrderDown : Int -> Model -> Model
-updateMoveOrderDown index model =
-    updateProgrammerState model
-        (\progState ->
-            if index < List.length progState.program - 1 then
-                { progState
-                    | program = swapAt index (index + 1) progState.program
-                    , selectedOrderIndex = Just (index + 1)
-                }
-
-            else
-                progState
-        )
-
-
-{-| Select an order in the program.
--}
-updateSelectProgramOrder : Int -> Model -> Model
-updateSelectProgramOrder index model =
-    updateProgrammerState model
-        (\progState ->
-            { progState | selectedOrderIndex = Just index }
-        )
-
-
-{-| Helper to update programmer state.
--}
-updateProgrammerState : Model -> (Programmer.ProgrammerState -> Programmer.ProgrammerState) -> Model
-updateProgrammerState model updater =
-    let
-        planning =
-            model.planningState
-    in
-    case planning.programmerState of
-        Nothing ->
-            model
-
-        Just progState ->
-            { model
-                | planningState =
-                    { planning
-                        | programmerState = Just (updater progState)
-                    }
-            }
-
-
-{-| Remove element at index from list.
--}
-removeAt : Int -> List a -> List a
-removeAt index list =
-    List.take index list ++ List.drop (index + 1) list
-
-
-{-| Swap elements at two indices.
--}
-swapAt : Int -> Int -> List a -> List a
-swapAt i j list =
-    let
-        arr =
-            List.indexedMap Tuple.pair list
-
-        getAt idx =
-            arr
-                |> List.filter (\( k, _ ) -> k == idx)
-                |> List.head
-                |> Maybe.map Tuple.second
-    in
-    case ( getAt i, getAt j ) of
-        ( Just vi, Just vj ) ->
-            arr
-                |> List.map
-                    (\( k, v ) ->
-                        if k == i then
-                            vj
-
-                        else if k == j then
-                            vi
-
-                        else
-                            v
-                    )
-
-        _ ->
-            list
 
 
 -- SUBSCRIPTIONS
@@ -1873,32 +1044,8 @@ viewModeIndicator mode =
 viewCanvas : Model -> Html Msg
 viewCanvas model =
     let
-        -- Calculate viewBox from camera
-        halfWidth =
-            model.viewportSize.width / 2 / model.camera.zoom
-
-        halfHeight =
-            model.viewportSize.height / 2 / model.camera.zoom
-
-        minX =
-            model.camera.center.x - halfWidth
-
-        minY =
-            model.camera.center.y - halfHeight
-
-        viewBoxWidth =
-            halfWidth * 2
-
-        viewBoxHeight =
-            halfHeight * 2
-
         viewBoxStr =
-            String.join " "
-                [ String.fromFloat minX
-                , String.fromFloat minY
-                , String.fromFloat viewBoxWidth
-                , String.fromFloat viewBoxHeight
-                ]
+            Camera.viewBoxString model.viewportSize model.cameraState.camera
 
         -- Get tooltip for hovered element
         tooltipView =
@@ -1935,16 +1082,16 @@ viewCanvas model =
         , style "background" "#3a5a3a" -- Grass green
         , style "flex" "1"
         , style "cursor"
-            (if model.dragState /= Nothing then
+            (if model.cameraState.dragState /= Nothing then
                 "grabbing"
 
              else
                 "default"
             )
-        , SvgE.on "mousedown" (decodeMousePosition StartDrag)
-        , SvgE.on "mousemove" (decodeMousePosition Drag)
-        , SvgE.on "mouseup" (Decode.succeed EndDrag)
-        , SvgE.on "mouseleave" (Decode.succeed EndDrag)
+        , SvgE.on "mousedown" (decodeMousePosition (\x y -> CameraMsg (Camera.StartDrag x y)))
+        , SvgE.on "mousemove" (decodeMousePosition (\x y -> CameraMsg (Camera.Drag x y)))
+        , SvgE.on "mouseup" (Decode.succeed (CameraMsg Camera.EndDrag))
+        , SvgE.on "mouseleave" (Decode.succeed (CameraMsg Camera.EndDrag))
         , Html.Events.preventDefaultOn "wheel" decodeWheelEvent
         ]
         [ -- Grid for reference
@@ -1981,7 +1128,7 @@ decodeMousePosition toMsg =
 -}
 decodeWheelEvent : Decode.Decoder ( Msg, Bool )
 decodeWheelEvent =
-    Decode.map3 (\dy mx my -> ( Zoom dy mx my, True ))
+    Decode.map3 (\dy mx my -> ( CameraMsg (Camera.Zoom dy mx my), True ))
         (Decode.field "deltaY" Decode.float)
         (Decode.field "offsetX" Decode.float)
         (Decode.field "offsetY" Decode.float)
