@@ -3,7 +3,6 @@ module Sawmill.Layout exposing
     , ElementId(..)
     , InteractiveElement
     , SpotType(..)
-    , SwitchState(..)
     , elements
     , furniture
     , interactiveElements
@@ -29,7 +28,7 @@ Layout:
 -}
 
 import Array
-import Track.Element as TrackElement exposing (Connector, Hand(..))
+import Track.Element as TrackElement exposing (Connector, Hand(..), SwitchState(..))
 import Track.Layout as TrackLayout exposing (Layout)
 import Util.Vec2 exposing (Vec2, vec2)
 
@@ -57,11 +56,6 @@ type Element
 type SpotType
     = Passenger
     | Freight
-
-
-type SwitchState
-    = Normal
-    | Reverse
 
 
 
@@ -128,9 +122,10 @@ trackLayout : Layout
 trackLayout =
     let
         -- Start at tunnel portal facing west (90° = pi/2 radians)
-        -- Trains exit the tunnel heading west (right on screen)
+        -- Trains exit the tunnel heading west (right on screen).
+        -- Anchored at (0, 0) to match the scenario-built layout geometry.
         tunnelConnector =
-            { position = vec2 -250 0, orientation = pi / 2 }
+            { position = vec2 0 0, orientation = pi / 2 }
 
         -- Build the layout step by step
         ( layout0, _ ) =
@@ -215,9 +210,19 @@ pointAlongSiding distance =
 
 
 {-| All interactive elements in the sawmill puzzle.
+
+Portal names come from the scenario: `anchorPortalName` labels the portal
+at the layout origin (left), `farPortalName` the portal at the far end
+of the mainline (right).
+
 -}
-interactiveElements : SwitchState -> List InteractiveElement
-interactiveElements turnoutState =
+interactiveElements :
+    { turnoutState : SwitchState
+    , anchorPortalName : String
+    , farPortalName : String
+    }
+    -> List InteractiveElement
+interactiveElements { turnoutState, anchorPortalName, farPortalName } =
     let
         -- Get positions from track layout
         tunnelPos =
@@ -226,7 +231,7 @@ interactiveElements turnoutState =
                     c.position
 
                 Nothing ->
-                    vec2 -250 0
+                    vec2 0 0
 
         turnoutPos =
             case TrackLayout.getConnector (TrackElement.ElementId 2) 0 trackLayout of
@@ -254,17 +259,17 @@ interactiveElements turnoutState =
                     c.position
 
                 Nothing ->
-                    vec2 250 0
+                    vec2 500 0
     in
     [ { id = TunnelPortalId
-      , element = TunnelPortal tunnelPos "West Station"
+      , element = TunnelPortal tunnelPos anchorPortalName
       , bounds = { x = tunnelPos.x - 20, y = tunnelPos.y - 20, width = 40, height = 40 }
-      , tooltip = "West Station (spawn point)"
+      , tooltip = anchorPortalName ++ " (spawn point)"
       }
     , { id = WestTunnelPortalId
-      , element = TunnelPortal westPos "East Station"
+      , element = TunnelPortal westPos farPortalName
       , bounds = { x = westPos.x - 20, y = westPos.y - 20, width = 40, height = 40 }
-      , tooltip = "East Station (spawn point)"
+      , tooltip = farPortalName ++ " (spawn point)"
       }
     , { id = TurnoutId
       , element = Turnout turnoutPos 0 turnoutState
@@ -297,9 +302,14 @@ interactiveElements turnoutState =
 
 {-| Get all elements for rendering.
 -}
-elements : SwitchState -> List Element
-elements turnoutState =
-    List.map .element (interactiveElements turnoutState)
+elements :
+    { turnoutState : SwitchState
+    , anchorPortalName : String
+    , farPortalName : String
+    }
+    -> List Element
+elements config =
+    List.map .element (interactiveElements config)
 
 
 {-| Map furniture - decorative elements.
@@ -351,11 +361,11 @@ furniture =
         , orientation = sidingOrientation
         }
     , trees =
-        [ vec2 -50 80
-        , vec2 -40 140
+        [ vec2 200 80
+        , vec2 210 140
         , vec2 (platformPos.x + 60) (platformPos.y - 20)
         , vec2 (teamTrackPos.x + 80) teamTrackPos.y
-        , vec2 -80 -30
-        , vec2 150 -20
+        , vec2 170 -30
+        , vec2 400 -20
         ]
     }

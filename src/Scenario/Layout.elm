@@ -1,5 +1,6 @@
 module Scenario.Layout exposing
     ( LayoutResult
+    , SpotLocation
     , SpotPosition
     , buildLayout
     )
@@ -14,7 +15,7 @@ placing track elements using the existing Track.Element geometry engine.
 
 import Dict exposing (Dict)
 import Scenario exposing (NodeType(..), Scenario, Segment(..), TrackEdge, TrackNode, TurnoutProps)
-import Track.Element as Element exposing (Connector, ElementId(..), Hand(..), TrackElementType)
+import Track.Element as Element exposing (Connector, ElementId(..), Hand(..), SwitchState(..), TrackElementType)
 
 import Track.Layout as Layout exposing (Layout)
 import Util.Vec2 as Vec2
@@ -26,11 +27,22 @@ type alias SpotPosition =
     }
 
 
+{-| Where a spot sits on the track: which element and how far along it
+(measured from the element's connector 0).
+-}
+type alias SpotLocation =
+    { elementId : ElementId
+    , localDistance : Float
+    , elementLength : Float
+    }
+
+
 type alias LayoutResult =
     { layout : Layout
     , nodeElementMap : Dict String ElementId
     , spotPositions : Dict String SpotPosition
-    , turnoutStates : Dict String String
+    , spotLocations : Dict String SpotLocation
+    , turnoutStates : Dict String SwitchState
     }
 
 
@@ -39,7 +51,8 @@ type alias WalkerState =
     , nodeElementMap : Dict String ElementId
     , nodePositions : Dict String Vec2.Vec2
     , spotPositions : Dict String SpotPosition
-    , turnoutStates : Dict String String
+    , spotLocations : Dict String SpotLocation
+    , turnoutStates : Dict String SwitchState
     , errors : List String
     }
 
@@ -77,6 +90,7 @@ buildLayout scenario =
                     , nodeElementMap = Dict.singleton portal.id portalElementId
                     , nodePositions = Dict.singleton portal.id (Vec2.vec2 0 0)
                     , spotPositions = Dict.empty
+                    , spotLocations = Dict.empty
                     , turnoutStates = Dict.empty
                     , errors = []
                     }
@@ -91,6 +105,7 @@ buildLayout scenario =
                     { layout = state.layout
                     , nodeElementMap = state.nodeElementMap
                     , spotPositions = state.spotPositions
+                    , spotLocations = state.spotLocations
                     , turnoutStates = state.turnoutStates
                     }
 
@@ -250,19 +265,30 @@ arriveAtNode nodeId attachPoint scenario state =
                                 |> Maybe.map .position
                                 |> Maybe.withDefault (Vec2.vec2 0 0)
 
-                        newState =
+                        stateWithNode =
                             { state
                                 | layout = newLayout
                                 , nodeElementMap = Dict.insert nodeId newElemId state.nodeElementMap
                                 , nodePositions = Dict.insert nodeId nodePos state.nodePositions
-                                , turnoutStates =
-                                    case maybeTurnoutState of
-                                        Just ts ->
-                                            Dict.insert nodeId ts state.turnoutStates
-
-                                        Nothing ->
-                                            state.turnoutStates
                             }
+
+                        newState =
+                            case maybeTurnoutState of
+                                Just "through" ->
+                                    { stateWithNode | turnoutStates = Dict.insert nodeId Normal stateWithNode.turnoutStates }
+
+                                Just "diverge" ->
+                                    { stateWithNode | turnoutStates = Dict.insert nodeId Reverse stateWithNode.turnoutStates }
+
+                                Just other ->
+                                    { stateWithNode
+                                        | errors =
+                                            stateWithNode.errors
+                                                ++ [ "Unknown initialState \"" ++ other ++ "\" for turnout " ++ nodeId ]
+                                    }
+
+                                Nothing ->
+                                    stateWithNode
                     in
                     -- Continue walking from this node
                     walkFromNode nodeId ( newElemId, 0 ) scenario newState
@@ -397,7 +423,23 @@ placeSpot spot segmentInfos segments state =
                     in
                     case spotPos of
                         Just sp ->
-                            { state | spotPositions = Dict.insert spot.id sp state.spotPositions }
+                            let
+                                elementLength =
+                                    List.drop segIdx segmentInfos
+                                        |> List.head
+                                        |> Maybe.map .length
+                                        |> Maybe.withDefault 0
+                            in
+                            { state
+                                | spotPositions = Dict.insert spot.id sp state.spotPositions
+                                , spotLocations =
+                                    Dict.insert spot.id
+                                        { elementId = elemId
+                                        , localDistance = localDistance
+                                        , elementLength = elementLength
+                                        }
+                                        state.spotLocations
+                            }
 
                         Nothing ->
                             { state | errors = state.errors ++ [ "Could not compute position for spot " ++ spot.id ] }

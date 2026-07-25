@@ -32,8 +32,8 @@
 
 - [x] 6.1 Add `AppState` type (`Loading | LoadFailed String | Ready Model`) to `Main.elm`, change `init` to fire `Http.get` for the scenario JSON, change `update`/`view`/`subscriptions` to dispatch on `AppState`
 - [x] 6.2 Add `scenario : Scenario` field to `Model`, make `defaultModel` a function of `Scenario`
-- [ ] 6.3 Build `Track.Layout` from scenario graph (using `Scenario/Layout.elm`) instead of `Sawmill.Layout.trackLayout` _(deferred to phase 10 — requires simulation/route code to also be updated)_
-- [ ] 6.4 Initialize `turnoutStates : Dict String SwitchState` from scenario data, replacing the single `turnoutState : SwitchState` field in `SimState` and `Model` _(deferred to phase 10 — requires simulation/route code to also be updated)_
+- [x] 6.3 Build `Track.Layout` from scenario graph (using `Scenario/Layout.elm`) instead of `Sawmill.Layout.trackLayout` _(done in phase 10 — simulation and routes use the scenario-built layout; the view renderer still draws `Sawmill.Layout.trackLayout`, now re-anchored at (0,0) to identical geometry, until its removal in phase 16)_
+- [x] 6.4 Initialize `turnoutStates : Dict String SwitchState` from scenario data, replacing the single `turnoutState : SwitchState` field in `SimState` and `Model` _(done in phase 10)_
 - [x] 6.5 Add loading screen view and load-failed error view
 
 ## 7. Test two-phase init
@@ -55,15 +55,15 @@
 
 ## 10. Simulation from scenario data
 
-- [ ] 10.1 Replace hardcoded exit point detection (`ElementId 1` → EastStation, etc.) in `Simulation.elm` with portal-to-station lookup from scenario data and element-to-node mapping
-- [ ] 10.2 Update route building in `Train/Route.elm` to use scenario graph data instead of hardcoded `ElementId` references
-- [ ] 10.3 Update all turnout-related code (simulation tick, programmer orders, switch commands) to use `Dict String SwitchState` keyed by turnout node id
-- [ ] 10.4 Update portal click handlers in `Main.elm` to use scenario station-to-portal mapping instead of hardcoded `ElementId` pattern matching
+- [x] 10.1 Replace hardcoded exit point detection (`ElementId 1` → EastStation, etc.) in `Simulation.elm` with portal-to-station lookup from scenario data and element-to-node mapping
+- [x] 10.2 Update route building in `Train/Route.elm` to use scenario graph data instead of hardcoded `ElementId` references
+- [x] 10.3 Update all turnout-related code (simulation tick, programmer orders, switch commands) to use `Dict String SwitchState` keyed by turnout node id
+- [x] 10.4 Update portal click handlers in `Main.elm` to use scenario station-to-portal mapping instead of hardcoded `ElementId` pattern matching _(portal map labels/tooltips now also come from scenario station names so labels match click behavior)_
 
 ## 11. Test simulation
 
-- [ ] 11.1 Run `npx elm-test` and `npx playwright test` — identify regressions from phase 10
-- [ ] 11.2 Fix all test failures from simulation changes
+- [x] 11.1 Run `npx elm-test` and `npx playwright test` — identify regressions from phase 10 _(elm-test: 699 passing, was 644 at baseline; Playwright: 67 passed / 2 skipped, matching baseline — the one failure alternates within the pre-existing flaky "Mouse wheel zoom" group and also failed at baseline)_
+- [x] 11.2 Fix all test failures from simulation changes _(no regressions; added RouteContextTest, SimulationTest, ScenarioFixtures incl. a two-turnout scenario for independent switch state coverage)_
 
 ## 12. Goal system
 

@@ -6,7 +6,7 @@ import Util.GameTime as GameTime
 import Planning.Helpers exposing (returnStockToInventory)
 import Programmer.Types exposing (Order(..), SpotTarget(..))
 import Train.Execution as Execution
-import Sawmill.Layout exposing (SwitchState(..), trackLayout)
+import ScenarioFixtures exposing (ctx, eastRouteNormal, eastRouteReverse, normalStates, westRouteNormal)
 import Set
 import Test exposing (..)
 import Track.Element exposing (ElementId(..))
@@ -221,7 +221,7 @@ spawnTests =
                             ]
 
                         spawned =
-                            checkSpawns 600.0 scheduled Set.empty Normal
+                            checkSpawns ctx 600.0 scheduled Set.empty normalStates
                     in
                     List.length spawned
                         |> Expect.equal 1
@@ -238,7 +238,7 @@ spawnTests =
                             ]
 
                         spawned =
-                            checkSpawns 300.0 scheduled Set.empty Normal
+                            checkSpawns ctx 300.0 scheduled Set.empty normalStates
                     in
                     List.length spawned
                         |> Expect.equal 0
@@ -258,7 +258,7 @@ spawnTests =
                             Set.singleton 1
 
                         spawned =
-                            checkSpawns 900.0 scheduled alreadySpawned Normal
+                            checkSpawns ctx 900.0 scheduled alreadySpawned normalStates
                     in
                     List.length spawned
                         |> Expect.equal 0
@@ -281,7 +281,7 @@ spawnTests =
                             ]
 
                         spawned =
-                            checkSpawns 300.0 scheduled Set.empty Normal
+                            checkSpawns ctx 300.0 scheduled Set.empty normalStates
                     in
                     List.length spawned
                         |> Expect.equal 2
@@ -298,7 +298,7 @@ spawnTests =
                             ]
 
                         spawned =
-                            checkSpawns 0.0 scheduled Set.empty Normal
+                            checkSpawns ctx 0.0 scheduled Set.empty normalStates
                     in
                     case List.head spawned of
                         Just train ->
@@ -320,7 +320,7 @@ spawnTests =
                             ]
 
                         spawned =
-                            checkSpawns 0.0 scheduled Set.empty Normal
+                            checkSpawns ctx 0.0 scheduled Set.empty normalStates
                     in
                     case List.head spawned of
                         Just train ->
@@ -341,7 +341,7 @@ routeTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         result =
                             Route.positionOnRoute 0.0 route
@@ -356,7 +356,7 @@ routeTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         result =
                             Route.positionOnRoute (route.totalLength / 2) route
@@ -371,7 +371,7 @@ routeTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         result =
                             Route.positionOnRoute route.totalLength route
@@ -386,7 +386,7 @@ routeTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         result =
                             Route.positionOnRoute -10.0 route
@@ -397,7 +397,7 @@ routeTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         result =
                             Route.positionOnRoute (route.totalLength + 10.0) route
@@ -408,22 +408,22 @@ routeTests =
         , describe "eastToWestRoute Normal"
             [ test "has positive total length" <|
                 \_ ->
-                    (Route.eastToWestRoute Normal).totalLength
+                    (eastRouteNormal).totalLength
                         |> Expect.greaterThan 0.0
             , test "has non-empty segments" <|
                 \_ ->
-                    List.length (Route.eastToWestRoute Normal).segments
+                    List.length (eastRouteNormal).segments
                         |> Expect.greaterThan 0
             ]
         , describe "westToEastRoute Normal"
             [ test "has same total length as eastToWestRoute Normal" <|
                 \_ ->
-                    (Route.westToEastRoute Normal).totalLength
-                        |> Expect.within (Expect.Absolute 0.01) (Route.eastToWestRoute Normal).totalLength
+                    (westRouteNormal).totalLength
+                        |> Expect.within (Expect.Absolute 0.01) (eastRouteNormal).totalLength
             , test "has same number of segments" <|
                 \_ ->
-                    List.length (Route.westToEastRoute Normal).segments
-                        |> Expect.equal (List.length (Route.eastToWestRoute Normal).segments)
+                    List.length (westRouteNormal).segments
+                        |> Expect.equal (List.length (eastRouteNormal).segments)
             ]
         ]
 
@@ -436,7 +436,7 @@ dynamicRoutingTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         elementIds =
                             List.map .elementId route.segments
@@ -445,7 +445,7 @@ dynamicRoutingTests =
                         |> Expect.equal [ ElementId 1, ElementId 2, ElementId 3 ]
             , test "eastToWest Normal total length is 500m (250 + 50 + 200)" <|
                 \_ ->
-                    (Route.eastToWestRoute Normal).totalLength
+                    (eastRouteNormal).totalLength
                         |> Expect.within (Expect.Absolute 0.01) 500.0
             ]
         , describe "Reverse switch state (siding route)"
@@ -453,35 +453,35 @@ dynamicRoutingTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         elementIds =
                             List.map .elementId route.segments
                     in
                     -- Should go: mainline east (1), turnout diverge (2),
-                    -- continuation curve (4), siding straight (5)
+                    -- continuation curve (5), siding straight (6)
                     elementIds
-                        |> Expect.equal [ ElementId 1, ElementId 2, ElementId 4, ElementId 5 ]
+                        |> Expect.equal [ ElementId 1, ElementId 2, ElementId 5, ElementId 6 ]
             , test "eastToWest Reverse route has positive total length" <|
                 \_ ->
-                    (Route.eastToWestRoute Reverse).totalLength
+                    (eastRouteReverse).totalLength
                         |> Expect.greaterThan 0.0
-            , test "eastToWest Reverse route includes element 5 (siding)" <|
+            , test "eastToWest Reverse route includes element 6 (siding)" <|
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
-                        hasElement5 =
-                            List.any (\s -> s.elementId == ElementId 5) route.segments
+                        hasSiding =
+                            List.any (\s -> s.elementId == ElementId 6) route.segments
                     in
-                    hasElement5
+                    hasSiding
                         |> Expect.equal True
             , test "siding route ends at buffer stop (no element 3)" <|
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         hasElement3 =
                             List.any (\s -> s.elementId == ElementId 3) route.segments
@@ -494,7 +494,7 @@ dynamicRoutingTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
                     in
                     case Route.positionOnRoute 0.0 route of
                         Just _ ->
@@ -506,7 +506,7 @@ dynamicRoutingTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
                     in
                     case Route.positionOnRoute route.totalLength route of
                         Just _ ->
@@ -524,39 +524,39 @@ spotPositionTests =
         [ describe "tunnel spots on eastToWest route"
             [ test "e-portal is at distance 0" <|
                 \_ ->
-                    Route.spotPosition "e-portal" (Route.eastToWestRoute Normal)
+                    Route.spotPosition ctx "e-portal" (eastRouteNormal)
                         |> Expect.equal (Just 0.0)
             , test "w-portal is at totalLength" <|
                 \_ ->
-                    Route.spotPosition "w-portal" (Route.eastToWestRoute Normal)
-                        |> Expect.equal (Just (Route.eastToWestRoute Normal).totalLength)
+                    Route.spotPosition ctx "w-portal" (eastRouteNormal)
+                        |> Expect.equal (Just (eastRouteNormal).totalLength)
             ]
         , describe "tunnel spots on westToEast route"
             [ test "w-portal is at distance 0" <|
                 \_ ->
-                    Route.spotPosition "w-portal" (Route.westToEastRoute Normal)
+                    Route.spotPosition ctx "w-portal" (westRouteNormal)
                         |> Expect.equal (Just 0.0)
             , test "e-portal is at totalLength" <|
                 \_ ->
-                    Route.spotPosition "e-portal" (Route.westToEastRoute Normal)
-                        |> Expect.equal (Just (Route.westToEastRoute Normal).totalLength)
+                    Route.spotPosition ctx "e-portal" (westRouteNormal)
+                        |> Expect.equal (Just (westRouteNormal).totalLength)
             ]
         , describe "siding spots on mainline routes"
             [ test "platform is not reachable on mainline eastToWest route" <|
                 \_ ->
-                    Route.spotPosition "platform" (Route.eastToWestRoute Normal)
+                    Route.spotPosition ctx "platform" (eastRouteNormal)
                         |> Expect.equal Nothing
             , test "team-track is not reachable on mainline eastToWest route" <|
                 \_ ->
-                    Route.spotPosition "team-track" (Route.eastToWestRoute Normal)
+                    Route.spotPosition ctx "team-track" (eastRouteNormal)
                         |> Expect.equal Nothing
             , test "platform is not reachable on mainline westToEast route" <|
                 \_ ->
-                    Route.spotPosition "platform" (Route.westToEastRoute Normal)
+                    Route.spotPosition ctx "platform" (westRouteNormal)
                         |> Expect.equal Nothing
             , test "team-track is not reachable on mainline westToEast route" <|
                 \_ ->
-                    Route.spotPosition "team-track" (Route.westToEastRoute Normal)
+                    Route.spotPosition ctx "team-track" (westRouteNormal)
                         |> Expect.equal Nothing
             ]
         , describe "siding spots on siding route"
@@ -564,9 +564,9 @@ spotPositionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
                     in
-                    case Route.spotPosition "platform" route of
+                    case Route.spotPosition ctx "platform" route of
                         Just dist ->
                             dist |> Expect.greaterThan 0.0
 
@@ -576,9 +576,9 @@ spotPositionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
                     in
-                    case Route.spotPosition "team-track" route of
+                    case Route.spotPosition ctx "team-track" route of
                         Just dist ->
                             dist |> Expect.greaterThan 0.0
 
@@ -588,13 +588,13 @@ spotPositionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         platformDist =
-                            Route.spotPosition "platform" route
+                            Route.spotPosition ctx "platform" route
 
                         teamTrackDist =
-                            Route.spotPosition "team-track" route
+                            Route.spotPosition ctx "team-track" route
                     in
                     case ( platformDist, teamTrackDist ) of
                         ( Just p, Just t ) ->
@@ -654,7 +654,7 @@ executingTrain : List Programmer.Types.Order -> Train.Types.ActiveTrain
 executingTrain program =
     let
         route =
-            Route.eastToWestRoute Reverse
+            eastRouteReverse
     in
     { id = 1
     , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
@@ -681,7 +681,7 @@ executionTests =
                             executingTrain [ Programmer.Types.SetReverser Programmer.Types.Forward ]
 
                         ( result, effects ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     Expect.all
                         [ \r -> r.reverser |> Expect.equal Programmer.Types.Forward
@@ -697,7 +697,7 @@ executionTests =
                             executingTrain [ Programmer.Types.SetReverser Programmer.Types.Reverse ]
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     result.reverser |> Expect.equal Programmer.Types.Reverse
             ]
@@ -709,7 +709,7 @@ executionTests =
                             executingTrain [ Programmer.Types.SetSwitch "turnout1" Programmer.Types.Diverging ]
 
                         ( result, effects ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     Expect.all
                         [ \r -> r.programCounter |> Expect.equal 1
@@ -726,7 +726,7 @@ executionTests =
                             executingTrain [ Programmer.Types.WaitSeconds 5 ]
 
                         ( result, _ ) =
-                            Execution.stepProgram 1.0 train
+                            Execution.stepProgram ctx 1.0 train
                     in
                     Expect.all
                         [ \r -> r.trainState |> Expect.equal Executing
@@ -742,10 +742,10 @@ executionTests =
 
                         -- Step through 3 seconds total to ensure it completes
                         ( step1, _ ) =
-                            Execution.stepProgram 1.0 train
+                            Execution.stepProgram ctx 1.0 train
 
                         ( step2, _ ) =
-                            Execution.stepProgram 1.5 step1
+                            Execution.stepProgram ctx 1.5 step1
                     in
                     Expect.all
                         [ \r -> r.programCounter |> Expect.equal 1
@@ -762,7 +762,7 @@ executionTests =
                             executingTrain [ Programmer.Types.Couple ]
 
                         ( result, effects ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     Expect.all
                         [ \r -> r.speed |> Expect.equal 0
@@ -785,7 +785,7 @@ executionTests =
                             executingTrain [ Programmer.Types.Uncouple 1 ]
 
                         ( result, effects ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     Expect.all
                         [ \r -> r.speed |> Expect.equal 0
@@ -808,7 +808,7 @@ executionTests =
                             executingTrain [ Programmer.Types.MoveTo "platform" TrainHead ]
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
                     in
                     result.speed |> Expect.greaterThan 0
             , test "MoveTo unreachable spot stops train with error" <|
@@ -816,7 +816,7 @@ executionTests =
                     let
                         -- Use mainline route where "platform" is unreachable
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         train =
                             { id = 1
@@ -833,7 +833,7 @@ executionTests =
                             }
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     case result.trainState of
                         Stopped _ ->
@@ -847,7 +847,7 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         train =
                             { id = 1
@@ -864,7 +864,7 @@ executionTests =
                             }
 
                         ( result, effects ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
                     in
                     Expect.all
                         [ \r -> r.speed |> Expect.lessThan 5.0
@@ -877,7 +877,7 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         train =
                             { id = 1
@@ -894,7 +894,7 @@ executionTests =
                             }
 
                         ( result, effects ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
                     in
                     Expect.all
                         [ \r -> r.speed |> Expect.equal 0
@@ -915,11 +915,11 @@ executionTests =
 
                         -- First step: SetReverser (instant, advances)
                         ( step1, effects1 ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
 
                         -- Second step: SetSwitch (instant, advances)
                         ( step2, effects2 ) =
-                            Execution.stepProgram 0.1 step1
+                            Execution.stepProgram ctx 0.1 step1
                     in
                     Expect.all
                         [ \_ -> step1.reverser |> Expect.equal Programmer.Types.Reverse
@@ -939,7 +939,7 @@ executionTests =
                             executingTrain [ Programmer.Types.SetReverser Programmer.Types.Forward ]
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     Expect.all
                         [ \r -> r.trainState |> Expect.equal WaitingForOrders
@@ -953,7 +953,7 @@ executionTests =
                             executingTrain []
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     result.trainState |> Expect.equal WaitingForOrders
             , test "program counter equals program length after completion" <|
@@ -966,10 +966,10 @@ executionTests =
                                 ]
 
                         ( step1, _ ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
 
                         ( step2, _ ) =
-                            Execution.stepProgram 0.1 step1
+                            Execution.stepProgram ctx 0.1 step1
                     in
                     Expect.all
                         [ \r -> r.programCounter |> Expect.equal 2
@@ -982,7 +982,7 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         -- Position train very close to route end, moving forward
                         train =
@@ -1000,7 +1000,7 @@ executionTests =
                             }
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
                     in
                     -- Speed should be reduced or position clamped
                     Expect.all
@@ -1012,7 +1012,7 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         train =
                             { id = 1
@@ -1030,13 +1030,13 @@ executionTests =
 
                         -- Step multiple times to push against buffer stop
                         ( step1, _ ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
 
                         ( step2, _ ) =
-                            Execution.stepProgram 0.5 step1
+                            Execution.stepProgram ctx 0.5 step1
 
                         ( step3, _ ) =
-                            Execution.stepProgram 0.5 step2
+                            Execution.stepProgram ctx 0.5 step2
                     in
                     step3.position |> Expect.atMost route.totalLength
             ]
@@ -1045,11 +1045,11 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         -- Get platform position on this route
                         platformDist =
-                            Route.spotPosition "platform" route
+                            Route.spotPosition ctx "platform" route
                                 |> Maybe.withDefault 300
 
                         train =
@@ -1071,11 +1071,11 @@ executionTests =
 
                         -- Step 1: SetReverser (instant)
                         ( step1, _ ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
 
                         -- Step 2+: MoveTo should accelerate backward (toward lower position)
                         ( step2, _ ) =
-                            Execution.stepProgram 1.0 step1
+                            Execution.stepProgram ctx 1.0 step1
                     in
                     Expect.all
                         [ \_ -> step1.reverser |> Expect.equal Programmer.Types.Reverse
@@ -1087,10 +1087,10 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         platformDist =
-                            Route.spotPosition "platform" route
+                            Route.spotPosition ctx "platform" route
                                 |> Maybe.withDefault 300
 
                         -- Position past the platform, reverser Forward
@@ -1109,7 +1109,7 @@ executionTests =
                             }
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
                     in
                     -- Target is behind in forward direction: speed should be 0
                     result.speed |> Expect.equal 0
@@ -1119,10 +1119,10 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         platformDist =
-                            Route.spotPosition "platform" route
+                            Route.spotPosition ctx "platform" route
                                 |> Maybe.withDefault 300
 
                         -- Place train very close to target (within arrival threshold)
@@ -1141,7 +1141,7 @@ executionTests =
                             }
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
                     in
                     Expect.all
                         [ \r -> r.programCounter |> Expect.equal 1
@@ -1165,7 +1165,7 @@ executionTests =
                             ]
 
                         spawned =
-                            checkSpawns 0.0 scheduled Set.empty Normal
+                            checkSpawns ctx 0.0 scheduled Set.empty normalStates
                     in
                     case List.head spawned of
                         Just train ->
@@ -1186,7 +1186,7 @@ executionTests =
                             ]
 
                         spawned =
-                            checkSpawns 0.0 scheduled Set.empty Normal
+                            checkSpawns ctx 0.0 scheduled Set.empty normalStates
                     in
                     case List.head spawned of
                         Just train ->
@@ -1200,7 +1200,7 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         train =
                             { id = 1
@@ -1217,7 +1217,7 @@ executionTests =
                             }
 
                         ( result, effects ) =
-                            Execution.stepProgram 1.0 train
+                            Execution.stepProgram ctx 1.0 train
                     in
                     Expect.all
                         [ \r -> r.speed |> Expect.equal 0
@@ -1229,7 +1229,7 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         train =
                             { id = 1
@@ -1247,13 +1247,13 @@ executionTests =
 
                         -- Coast for several seconds (braking = 3.0 m/s^2, speed 3.0 => 1 second to stop)
                         ( step1, _ ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
 
                         ( step2, _ ) =
-                            Execution.stepProgram 0.5 step1
+                            Execution.stepProgram ctx 0.5 step1
 
                         ( step3, _ ) =
-                            Execution.stepProgram 0.5 step2
+                            Execution.stepProgram ctx 0.5 step2
                     in
                     step3.speed |> Expect.equal 0
             ]
@@ -1265,7 +1265,7 @@ executionTests =
                             executingTrain [ Programmer.Types.Couple ]
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     result.trainState |> Expect.equal (Stopped "Couple: no adjacent cars found")
             , test "Uncouple error message matches spec" <|
@@ -1275,7 +1275,7 @@ executionTests =
                             executingTrain [ Programmer.Types.Uncouple 1 ]
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     result.trainState |> Expect.equal (Stopped "Uncouple: not yet supported")
             , test "MoveTo unreachable spot error message matches spec" <|
@@ -1283,7 +1283,7 @@ executionTests =
                     let
                         -- Use mainline route where "platform" is unreachable
                         route =
-                            Route.eastToWestRoute Normal
+                            eastRouteNormal
 
                         train =
                             { id = 1
@@ -1300,7 +1300,7 @@ executionTests =
                             }
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.1 train
+                            Execution.stepProgram ctx 0.1 train
                     in
                     result.trainState |> Expect.equal (Stopped "Cannot reach platform")
             ]
@@ -1309,7 +1309,7 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         -- Train near start of route, moving in reverse (toward position 0)
                         train =
@@ -1327,7 +1327,7 @@ executionTests =
                             }
 
                         ( result, _ ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
                     in
                     Expect.all
                         [ \r -> r.speed |> Expect.lessThan 10.0
@@ -1338,7 +1338,7 @@ executionTests =
                 \_ ->
                     let
                         route =
-                            Route.eastToWestRoute Reverse
+                            eastRouteReverse
 
                         train =
                             { id = 1
@@ -1355,13 +1355,13 @@ executionTests =
                             }
 
                         ( step1, _ ) =
-                            Execution.stepProgram 0.5 train
+                            Execution.stepProgram ctx 0.5 train
 
                         ( step2, _ ) =
-                            Execution.stepProgram 0.5 step1
+                            Execution.stepProgram ctx 0.5 step1
 
                         ( step3, _ ) =
-                            Execution.stepProgram 0.5 step2
+                            Execution.stepProgram ctx 0.5 step2
                     in
                     step3.position |> Expect.atLeast 0
             ]
@@ -1453,7 +1453,7 @@ arcOrientationTests =
             \_ ->
                 let
                     route =
-                        Route.eastToWestRoute Reverse
+                        eastRouteReverse
 
                     -- Find where the arc segment (turnout diverge, ElementId 2) starts
                     arcSegment =
@@ -1485,7 +1485,7 @@ arcOrientationTests =
             \_ ->
                 let
                     route =
-                        Route.eastToWestRoute Reverse
+                        eastRouteReverse
 
                     arcSegment =
                         route.segments
@@ -1540,9 +1540,9 @@ turnoutRebuildTests =
             \_ ->
                 let
                     route =
-                        Route.eastToWestRoute Normal
+                        eastRouteNormal
                 in
-                case Route.turnoutStartDistance route of
+                case Route.turnoutStartDistance ctx route of
                     Just dist ->
                         dist |> Expect.greaterThan 0.0
 
@@ -1554,17 +1554,17 @@ turnoutRebuildTests =
                     route =
                         testRoute 500.0
                 in
-                Route.turnoutStartDistance route
+                Route.turnoutStartDistance ctx route
                     |> Expect.equal Nothing
         , test "train before turnout gets route rebuilt" <|
             \_ ->
                 let
                     normalRoute =
-                        Route.eastToWestRoute Normal
+                        eastRouteNormal
 
                     -- Position train before the turnout
                     turnoutDist =
-                        Route.turnoutStartDistance normalRoute
+                        Route.turnoutStartDistance ctx normalRoute
                             |> Maybe.withDefault 999
 
                     train =
@@ -1577,7 +1577,7 @@ turnoutRebuildTests =
                             }
 
                     reverseRoute =
-                        Route.eastToWestRoute Reverse
+                        eastRouteReverse
                 in
                 -- Route should differ from Normal after rebuild with Reverse
                 -- (the segments after turnout differ)
@@ -1595,10 +1595,10 @@ turnoutRebuildTests =
                 let
                     -- Build a siding route (Reverse)
                     sidingRoute =
-                        Route.eastToWestRoute Reverse
+                        eastRouteReverse
 
                     turnoutDist =
-                        Route.turnoutStartDistance sidingRoute
+                        Route.turnoutStartDistance ctx sidingRoute
                             |> Maybe.withDefault 0
 
                     -- Find the turnout segment to get past it

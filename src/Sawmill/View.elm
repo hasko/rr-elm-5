@@ -10,12 +10,11 @@ import Sawmill.Layout as Layout
         ( Element(..)
         , ElementId(..)
         , InteractiveElement
-        , SwitchState(..)
         )
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
-import Track.Element as TrackElement
+import Track.Element as TrackElement exposing (SwitchState(..))
 import Track.Layout as TrackLayout
 import Track.Render as TrackRender
 import Util.Vec2 exposing (Vec2)
@@ -25,6 +24,8 @@ import Util.Vec2 exposing (Vec2)
 -}
 view :
     { turnoutState : SwitchState
+    , anchorPortalName : String
+    , farPortalName : String
     , hoveredElement : Maybe ElementId
     , onElementClick : ElementId -> msg
     , onElementHover : ElementId -> msg
@@ -276,6 +277,8 @@ viewTurnoutIndicator state =
 
 viewInteractiveElements :
     { turnoutState : SwitchState
+    , anchorPortalName : String
+    , farPortalName : String
     , hoveredElement : Maybe ElementId
     , onElementClick : ElementId -> msg
     , onElementHover : ElementId -> msg
@@ -285,13 +288,19 @@ viewInteractiveElements :
     -> Svg msg
 viewInteractiveElements config =
     Svg.g []
-        (Layout.interactiveElements config.turnoutState
+        (Layout.interactiveElements
+            { turnoutState = config.turnoutState
+            , anchorPortalName = config.anchorPortalName
+            , farPortalName = config.farPortalName
+            }
             |> List.map (viewInteractiveElement config)
         )
 
 
 viewInteractiveElement :
     { turnoutState : SwitchState
+    , anchorPortalName : String
+    , farPortalName : String
     , hoveredElement : Maybe ElementId
     , onElementClick : ElementId -> msg
     , onElementHover : ElementId -> msg

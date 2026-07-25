@@ -5,8 +5,9 @@ import Expect
 import Json.Decode as Decode
 import Scenario exposing (Scenario)
 import Scenario.Layout exposing (LayoutResult, buildLayout)
+import ScenarioFixtures
 import Test exposing (..)
-import Track.Element exposing (ElementId(..), TrackElementType(..))
+import Track.Element exposing (ElementId(..), SwitchState(..), TrackElementType(..))
 import Track.Layout as Layout
 
 
@@ -19,7 +20,27 @@ sawmillScenario =
 suite : Test
 suite =
     describe "Scenario.Layout"
-        [ describe "buildLayout with sawmill scenario"
+        [ describe "test fixture canaries"
+            [ test "ScenarioFixtures sawmill layout builds successfully" <|
+                \_ ->
+                    case Scenario.Layout.buildLayout ScenarioFixtures.sawmillScenario of
+                        Ok result ->
+                            Expect.equal 8 (List.length result.layout.elements)
+
+                        Err err ->
+                            Expect.fail ("Fixture layout failed to build: " ++ err)
+            , test "ScenarioFixtures two-turnout layout builds successfully" <|
+                \_ ->
+                    case Scenario.Layout.buildLayout ScenarioFixtures.twoTurnoutScenario of
+                        Ok result ->
+                            -- p1 + straight + t1 + straight + t2 + straight + p2
+                            -- + siding1 + b1 + siding2 + b2 = 11 elements
+                            Expect.equal 11 (List.length result.layout.elements)
+
+                        Err err ->
+                            Expect.fail ("Two-turnout fixture failed to build: " ++ err)
+            ]
+        , describe "buildLayout with sawmill scenario"
             [ test "produces correct number of elements" <|
                 \_ ->
                     case sawmillScenario |> Result.andThen buildLayout of
@@ -100,7 +121,57 @@ suite =
                 \_ ->
                     case sawmillScenario |> Result.andThen buildLayout of
                         Ok result ->
-                            Expect.equal (Just "through") (Dict.get "t1" result.turnoutStates)
+                            Expect.equal (Just Normal) (Dict.get "t1" result.turnoutStates)
+
+                        Err err ->
+                            Expect.fail err
+            , test "initialState diverge maps to Reverse" <|
+                \_ ->
+                    let
+                        divergeJson =
+                            String.replace "\"initialState\": \"through\"" "\"initialState\": \"diverge\"" sawmillJson
+                    in
+                    case Decode.decodeString Scenario.decoder divergeJson |> Result.mapError Decode.errorToString |> Result.andThen buildLayout of
+                        Ok result ->
+                            Expect.equal (Just Reverse) (Dict.get "t1" result.turnoutStates)
+
+                        Err err ->
+                            Expect.fail err
+            , test "unknown initialState is a layout error" <|
+                \_ ->
+                    let
+                        badJson =
+                            String.replace "\"initialState\": \"through\"" "\"initialState\": \"sideways\"" sawmillJson
+                    in
+                    case Decode.decodeString Scenario.decoder badJson |> Result.mapError Decode.errorToString |> Result.andThen buildLayout of
+                        Ok _ ->
+                            Expect.fail "Expected error for unknown initialState"
+
+                        Err errMsg ->
+                            if String.contains "initialState" errMsg then
+                                Expect.pass
+
+                            else
+                                Expect.fail ("Expected initialState error, got: " ++ errMsg)
+            , test "records spot locations on their track element" <|
+                \_ ->
+                    case sawmillScenario |> Result.andThen buildLayout of
+                        Ok result ->
+                            case ( Dict.get "platform" result.spotLocations, Dict.get "team-track" result.spotLocations ) of
+                                ( Just platform, Just teamTrack ) ->
+                                    -- Both spots fall in the siding straight (150m), which
+                                    -- follows the 30° curve (arc length ~89.01m):
+                                    -- platform at 149 - 89.01 ≈ 59.99, team track at 209 - 89.01 ≈ 119.99
+                                    Expect.all
+                                        [ \_ -> Expect.equal platform.elementId teamTrack.elementId
+                                        , \_ -> platform.localDistance |> Expect.within (Expect.Absolute 0.1) 59.99
+                                        , \_ -> teamTrack.localDistance |> Expect.within (Expect.Absolute 0.1) 119.99
+                                        , \_ -> platform.elementLength |> Expect.within (Expect.Absolute 0.01) 150
+                                        ]
+                                        ()
+
+                                _ ->
+                                    Expect.fail "spot locations not found"
 
                         Err err ->
                             Expect.fail err

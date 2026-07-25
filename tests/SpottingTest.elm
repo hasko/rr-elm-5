@@ -14,7 +14,7 @@ will fail until the implementation lands.
 import Expect
 import Planning.Types exposing (StockItem, StockType(..))
 import Programmer.Types exposing (Order(..))
-import Sawmill.Layout exposing (SwitchState(..))
+import ScenarioFixtures exposing (ctx, eastRouteReverse)
 import Test exposing (..)
 import Train.Route as Route
 import Train.Stock exposing (consistLength, couplerGap, stockLength)
@@ -86,10 +86,10 @@ backwardCompatTests =
                 -- (position field) at the target distance. This is existing behavior.
                 let
                     route =
-                        Route.eastToWestRoute Reverse
+                        eastRouteReverse
 
                     platformDist =
-                        Route.spotPosition "platform" route
+                        Route.spotPosition ctx "platform" route
                             |> Maybe.withDefault 300
                 in
                 -- The platform spot should be reachable on the siding route
@@ -172,10 +172,10 @@ threeCarConsistTests =
             \_ ->
                 let
                     route =
-                        Route.eastToWestRoute Reverse
+                        eastRouteReverse
 
                     teamTrackDist =
-                        Route.spotPosition "team-track" route
+                        Route.spotPosition ctx "team-track" route
                 in
                 case teamTrackDist of
                     Just dist ->
@@ -190,10 +190,10 @@ threeCarConsistTests =
                 -- so that car 2's center aligns with the spot.
                 let
                     route =
-                        Route.eastToWestRoute Reverse
+                        eastRouteReverse
 
                     teamTrackDist =
-                        Route.spotPosition "team-track" route
+                        Route.spotPosition ctx "team-track" route
                             |> Maybe.withDefault 0
 
                     car2Offset =

@@ -1,5 +1,6 @@
 module StorageTest exposing (..)
 
+import Dict
 import Expect
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -33,7 +34,7 @@ minimalState : SavedState
 minimalState =
     { gameTime = 0
     , mode = "Planning"
-    , turnoutState = "Normal"
+    , turnoutStates = Dict.fromList [ ( "t1", "Normal" ) ]
     , activeTrains = []
     , spawnedTrainIds = []
     , scheduledTrains = []
@@ -56,7 +57,7 @@ roundTripTests =
                         Expect.all
                             [ \_ -> decoded.gameTime |> Expect.within (Expect.Absolute 0.01) 0
                             , \_ -> decoded.mode |> Expect.equal "Planning"
-                            , \_ -> decoded.turnoutState |> Expect.equal "Normal"
+                            , \_ -> decoded.turnoutStates |> Expect.equal (Dict.fromList [ ( "t1", "Normal" ) ])
                             , \_ -> decoded.activeTrains |> Expect.equal []
                             , \_ -> decoded.spawnedTrainIds |> Expect.equal []
                             , \_ -> decoded.scheduledTrains |> Expect.equal []
@@ -352,17 +353,20 @@ edgeCaseTests =
                 states
                     |> List.map (\s -> roundTrip s |> Result.map .mode)
                     |> Expect.equal [ Ok "Running", Ok "Paused", Ok "Planning" ]
-        , test "turnout state values preserved as strings" <|
+        , test "turnout state values preserved per turnout id" <|
             \_ ->
                 let
                     states =
-                        [ { minimalState | turnoutState = "Normal" }
-                        , { minimalState | turnoutState = "Reverse" }
+                        [ { minimalState | turnoutStates = Dict.fromList [ ( "t1", "Normal" ) ] }
+                        , { minimalState | turnoutStates = Dict.fromList [ ( "t1", "Reverse" ), ( "t2", "Normal" ) ] }
                         ]
                 in
                 states
-                    |> List.map (\s -> roundTrip s |> Result.map .turnoutState)
-                    |> Expect.equal [ Ok "Normal", Ok "Reverse" ]
+                    |> List.map (\s -> roundTrip s |> Result.map .turnoutStates)
+                    |> Expect.equal
+                        [ Ok (Dict.fromList [ ( "t1", "Normal" ) ])
+                        , Ok (Dict.fromList [ ( "t1", "Reverse" ), ( "t2", "Normal" ) ])
+                        ]
         , test "empty program round-trips" <|
             \_ ->
                 let

@@ -14,8 +14,10 @@ module Scenario exposing
     , edgeDecoder
     , goalDecoder
     , nodeDecoder
+    , portalNodeIds
     , segmentDecoder
     , stationDecoder
+    , stationForPortal
     )
 
 import Json.Decode as Decode exposing (Decoder)
@@ -102,6 +104,35 @@ type alias Goal =
     , from : Maybe String
     , flavor : String
     }
+
+
+
+-- LOOKUPS
+
+
+{-| Portal node ids in scenario definition order.
+The first portal is the layout anchor (placed at the origin).
+-}
+portalNodeIds : Scenario -> List String
+portalNodeIds scenario =
+    scenario.track.nodes
+        |> List.filterMap
+            (\node ->
+                if node.nodeType == Portal then
+                    Just node.id
+
+                else
+                    Nothing
+            )
+
+
+{-| The station linked to the given portal node, if any.
+-}
+stationForPortal : String -> Scenario -> Maybe Station
+stationForPortal portalId scenario =
+    scenario.stations
+        |> List.filter (\s -> s.portal == portalId)
+        |> List.head
 
 
 

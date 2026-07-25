@@ -2,7 +2,7 @@ module BufferStopTest exposing (..)
 
 import Array
 import Expect
-import Sawmill.Layout exposing (SwitchState(..), trackLayout)
+import Sawmill.Layout exposing (trackLayout)
 import Test exposing (..)
 import Track.Element as Element
     exposing

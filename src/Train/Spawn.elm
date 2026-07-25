@@ -3,13 +3,14 @@ module Train.Spawn exposing (checkSpawns)
 {-| Train spawning logic.
 -}
 
+import Dict exposing (Dict)
 import Planning.Types exposing (ScheduledTrain)
 import Programmer.Types exposing (ReverserPosition(..))
-import Sawmill.Layout exposing (SwitchState)
 import Set exposing (Set)
-import Train.Route as Route
+import Track.Element exposing (SwitchState)
+import Train.Route as Route exposing (TrackContext)
 import Train.Stock exposing (consistLength, trainSpeed)
-import Train.Types exposing (ActiveTrain, Route, TrainState(..))
+import Train.Types exposing (ActiveTrain, TrainState(..))
 import Util.GameTime exposing (GameTime)
 
 
@@ -17,15 +18,16 @@ import Util.GameTime exposing (GameTime)
 Returns list of newly spawned ActiveTrains.
 -}
 checkSpawns :
-    GameTime
+    TrackContext
+    -> GameTime
     -> List ScheduledTrain
     -> Set Int
-    -> SwitchState
+    -> Dict String SwitchState
     -> List ActiveTrain
-checkSpawns currentTime scheduledTrains spawnedIds switchState =
+checkSpawns ctx currentTime scheduledTrains spawnedIds switchStates =
     scheduledTrains
         |> List.filter (\train -> shouldSpawn train currentTime spawnedIds)
-        |> List.map (createActiveTrain switchState)
+        |> List.map (createActiveTrain ctx switchStates)
 
 
 {-| Check if a scheduled train should spawn.
@@ -38,11 +40,11 @@ shouldSpawn train currentTime spawnedIds =
 
 {-| Create an ActiveTrain from a ScheduledTrain.
 -}
-createActiveTrain : SwitchState -> ScheduledTrain -> ActiveTrain
-createActiveTrain switchState scheduled =
+createActiveTrain : TrackContext -> Dict String SwitchState -> ScheduledTrain -> ActiveTrain
+createActiveTrain ctx switchStates scheduled =
     let
         route =
-            Route.rebuildRoute scheduled.spawnPoint switchState
+            Route.routeFromStation ctx switchStates scheduled.spawnPoint
 
         -- Start position: negative so train is "inside" the tunnel
         -- Lead car front at 0 means the car just emerged

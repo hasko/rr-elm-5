@@ -3,19 +3,16 @@ module Storage exposing
     , SavedTrain
     , decodeSavedState
     , encodeSavedState
-    , routeForSpawnPoint
     )
 
 {-| Local storage persistence for game state.
 -}
 
+import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Planning.Types exposing (ScheduledTrain, SpawnPointInventory, StockItem, StockType(..))
 import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotTarget(..), SwitchPosition(..))
-import Sawmill.Layout exposing (SwitchState)
-import Train.Route as Route
-import Train.Types exposing (Route)
 
 
 {-| Saved state structure for localStorage.
@@ -23,7 +20,7 @@ import Train.Types exposing (Route)
 type alias SavedState =
     { gameTime : Float
     , mode : String -- "Planning" | "Running" | "Paused"
-    , turnoutState : String -- "Normal" | "Reverse"
+    , turnoutStates : Dict String String -- turnout node id -> "Normal" | "Reverse"
     , activeTrains : List SavedTrain
     , spawnedTrainIds : List Int
     , scheduledTrains : List ScheduledTrain
@@ -47,14 +44,6 @@ type alias SavedTrain =
     }
 
 
-{-| Get route for a spawn point with the given turnout state.
--}
-routeForSpawnPoint : String -> SwitchState -> Route
-routeForSpawnPoint spawnPoint switchState =
-    Route.rebuildRoute spawnPoint switchState
-
-
-
 -- ENCODERS
 
 
@@ -65,7 +54,7 @@ encodeSavedState state =
     Encode.object
         [ ( "gameTime", Encode.float state.gameTime )
         , ( "mode", Encode.string state.mode )
-        , ( "turnoutState", Encode.string state.turnoutState )
+        , ( "turnoutStates", Encode.dict identity Encode.string state.turnoutStates )
         , ( "activeTrains", Encode.list encodeSavedTrain state.activeTrains )
         , ( "spawnedTrainIds", Encode.list Encode.int state.spawnedTrainIds )
         , ( "scheduledTrains", Encode.list encodeScheduledTrain state.scheduledTrains )
@@ -214,10 +203,10 @@ encodeSwitchPosition pos =
 decodeSavedState : Decoder SavedState
 decodeSavedState =
     Decode.map8
-        (\gameTime mode turnoutState activeTrains spawnedTrainIds scheduledTrains inventories rest ->
+        (\gameTime mode turnoutStates activeTrains spawnedTrainIds scheduledTrains inventories rest ->
             { gameTime = gameTime
             , mode = mode
-            , turnoutState = turnoutState
+            , turnoutStates = turnoutStates
             , activeTrains = activeTrains
             , spawnedTrainIds = spawnedTrainIds
             , scheduledTrains = scheduledTrains
@@ -231,7 +220,7 @@ decodeSavedState =
         )
         (Decode.field "gameTime" Decode.float)
         (Decode.field "mode" Decode.string)
-        (Decode.field "turnoutState" Decode.string)
+        (Decode.field "turnoutStates" (Decode.dict Decode.string))
         (Decode.field "activeTrains" (Decode.list decodeSavedTrain))
         (Decode.field "spawnedTrainIds" (Decode.list Decode.int))
         (Decode.field "scheduledTrains" (Decode.list decodeScheduledTrain))

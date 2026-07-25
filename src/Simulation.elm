@@ -1,4 +1,4 @@
-module Simulation exposing (SimState, rebuildIfBeforeTurnout, tick)
+module Simulation exposing (SimState, rebuildIfBeforeTurnouts, tick)
 
 {-| Simulation tick: advances the world state by one frame.
 
@@ -8,23 +8,23 @@ Each tick:
 2.  Spawn new trains
 3.  Execute programs and collect effects
 4.  Apply switch effects
-5.  Rebuild routes if turnout changed
+5.  Rebuild routes if turnouts changed
 6.  Move unprogrammed trains
 7.  Despawn and return stock
 
 -}
 
+import Dict exposing (Dict)
 import Planning.Helpers exposing (returnStockToInventory)
 import Planning.Types exposing (ScheduledTrain, SpawnPointInventory)
-import Programmer.Types exposing (SwitchPosition)
-import Sawmill.Layout exposing (SwitchState(..))
+import Programmer.Types
 import Set exposing (Set)
-import Track.Element
+import Track.Element exposing (SwitchState(..))
 import Train.Execution as Execution
 import Train.Movement as Movement
-import Train.Route as Route
+import Train.Route as Route exposing (TrackContext)
 import Train.Spawn as Spawn
-import Train.Types exposing (ActiveTrain, Effect(..), Route, RouteSegment, SegmentGeometry(..), TrainState(..))
+import Train.Types exposing (ActiveTrain, Effect(..), TrainState(..))
 import Util.GameTime exposing (GameTime)
 
 
@@ -37,15 +37,15 @@ type alias SimState =
     , spawnedTrainIds : Set Int
     , scheduledTrains : List ScheduledTrain
     , inventories : List SpawnPointInventory
-    , turnoutState : SwitchState
+    , turnoutStates : Dict String SwitchState
     , selectedTrainId : Maybe Int
     }
 
 
 {-| Advance the simulation by deltaMs milliseconds.
 -}
-tick : Float -> SimState -> SimState
-tick deltaMs state =
+tick : TrackContext -> Float -> SimState -> SimState
+tick ctx deltaMs state =
     let
         -- Cap delta to prevent teleportation when returning from background tab
         cappedDeltaMs =
@@ -62,15 +62,16 @@ tick deltaMs state =
         -- Spawn new trains
         newTrains =
             Spawn.checkSpawns
+                ctx
                 newElapsed
                 state.scheduledTrains
                 state.spawnedTrainIds
-                state.turnoutState
+                state.turnoutStates
 
         -- Execute programs and update positions
         executedResults =
             state.activeTrains
-                |> List.map (Execution.stepProgram scaledDeltaSeconds)
+                |> List.map (Execution.stepProgram ctx scaledDeltaSeconds)
 
         executedTrains =
             List.map Tuple.first executedResults
@@ -79,18 +80,26 @@ tick deltaMs state =
         allEffects =
             List.concatMap Tuple.second executedResults
 
-        -- Apply switch effects to turnout state
-        newTurnoutState =
-            List.foldl applySwitchEffect state.turnoutState allEffects
+        -- Apply switch effects to the turnout states
+        newTurnoutStates =
+            List.foldl applySwitchEffect state.turnoutStates allEffects
 
-        -- Rebuild routes if turnout state changed, but only for trains
-        -- that haven't passed the turnout yet (to prevent position jumps)
+        -- Turnouts whose state changed this tick
+        changedTurnouts =
+            Dict.keys newTurnoutStates
+                |> List.filter
+                    (\nodeId ->
+                        Dict.get nodeId newTurnoutStates /= Dict.get nodeId state.turnoutStates
+                    )
+
+        -- Rebuild routes if turnout states changed, but only for trains
+        -- that haven't passed the changed turnouts yet (to prevent position jumps)
         routeRebuiltTrains =
-            if newTurnoutState /= state.turnoutState then
-                List.map (rebuildIfBeforeTurnout newTurnoutState) executedTrains
+            if List.isEmpty changedTurnouts then
+                executedTrains
 
             else
-                executedTrains
+                List.map (rebuildIfBeforeTurnouts ctx newTurnoutStates changedTurnouts) executedTrains
 
         -- Move trains that are still using simple movement (no program).
         -- Trains with programs are fully handled by stepProgram
@@ -117,11 +126,7 @@ tick deltaMs state =
         newInventories =
             List.foldl
                 (\train invs ->
-                    let
-                        exitStation =
-                            exitSpawnPoint train.route
-                    in
-                    returnStockToInventory exitStation train.consist invs
+                    returnStockToInventory (exitStation ctx train) train.consist invs
                 )
                 state.inventories
                 despawningTrains
@@ -153,7 +158,7 @@ tick deltaMs state =
         , activeTrains = allTrains
         , spawnedTrainIds = newSpawnedIds
         , inventories = newInventories
-        , turnoutState = newTurnoutState
+        , turnoutStates = newTurnoutStates
         , selectedTrainId = newSelectedTrainId
     }
 
@@ -162,111 +167,68 @@ tick deltaMs state =
 -- INTERNAL HELPERS
 
 
-{-| Apply a switch effect to the turnout state.
+{-| Apply a switch effect to the turnout states.
 -}
-applySwitchEffect : Effect -> SwitchState -> SwitchState
-applySwitchEffect effect _ =
+applySwitchEffect : Effect -> Dict String SwitchState -> Dict String SwitchState
+applySwitchEffect effect states =
     case effect of
-        SetSwitchEffect _ pos ->
+        SetSwitchEffect switchId pos ->
             case pos of
                 Programmer.Types.Normal ->
-                    Sawmill.Layout.Normal
+                    Dict.insert switchId Normal states
 
                 Programmer.Types.Diverging ->
-                    Reverse
+                    Dict.insert switchId Reverse states
 
 
-{-| Rebuild a train's route only if the train hasn't passed the turnout yet.
+{-| Rebuild a train's route only if the train hasn't reached any of the
+changed turnouts yet.
 
-Trains past the turnout keep their existing route to prevent position jumps
-when the switch changes — the same position value would map to a different
-physical location on the new route.
+Trains past a changed turnout keep their existing route to prevent position
+jumps when the switch changes — the same position value would map to a
+different physical location on the new route.
 
 -}
-rebuildIfBeforeTurnout : SwitchState -> ActiveTrain -> ActiveTrain
-rebuildIfBeforeTurnout newSwitchState train =
-    case Route.turnoutStartDistance train.route of
+rebuildIfBeforeTurnouts : TrackContext -> Dict String SwitchState -> List String -> ActiveTrain -> ActiveTrain
+rebuildIfBeforeTurnouts ctx newStates changedTurnouts train =
+    let
+        changedDistances =
+            changedTurnouts
+                |> List.filterMap (\nodeId -> Dict.get nodeId ctx.nodeElementMap)
+                |> List.filterMap (\elemId -> Route.elementStartDistance elemId train.route)
+
+        rebuild =
+            { train | route = Route.routeFromStation ctx newStates train.spawnPoint }
+    in
+    case List.minimum changedDistances of
         Just turnoutDist ->
             if train.position < turnoutDist then
-                { train | route = Route.rebuildRoute train.spawnPoint newSwitchState }
+                rebuild
 
             else
                 train
 
         Nothing ->
-            -- Turnout not on this route, rebuild is safe
-            { train | route = Route.rebuildRoute train.spawnPoint newSwitchState }
+            -- No changed turnout on this route, rebuild is safe
+            rebuild
 
 
-{-| Determine spawn point from route (by checking route direction).
--}
-spawnPointForRoute : Route -> String
-spawnPointForRoute route =
-    -- Check first segment orientation to determine direction
-    case List.head route.segments of
-        Just segment ->
-            case segment.geometry of
-                StraightGeometry geo ->
-                    -- East-to-West starts heading West (positive X direction)
-                    if geo.orientation > pi / 2 && geo.orientation < 3 * pi / 2 then
-                        "west"
+{-| Determine the exit station for a despawning train.
 
-                    else
-                        "east"
-
-                ArcGeometry _ ->
-                    "east"
-
-        Nothing ->
-            "east"
-
-
-{-| Determine the exit spawn point for a despawning train.
-
-Checks which tunnel the route ends at (the last segment's element ID).
-A train that reversed and returned to its origin will have a rebuilt route
-whose last segment is near the origin tunnel, so stock returns correctly.
-
-Falls back to opposite-of-spawn if the route end can't be identified
-(e.g., route ends at buffer stop -- shouldn't happen for despawning trains).
+Checks which station's portal the route ends at. Falls back to the
+station opposite the spawn point if the route end isn't a portal
+(e.g., route ends at a buffer stop — shouldn't happen for despawning trains).
 
 -}
-exitSpawnPoint : Route -> String
-exitSpawnPoint route =
-    case lastRouteSegment route.segments of
-        Just segment ->
-            if segment.elementId == Track.Element.ElementId 1 then
-                -- Route ends at mainline east (near East tunnel)
-                "east"
-
-            else if segment.elementId == Track.Element.ElementId 3 then
-                -- Route ends at mainline west (near West tunnel)
-                "west"
-
-            else
-                -- Route ends at siding or other element; fall back
-                let
-                    spawnDir =
-                        spawnPointForRoute route
-                in
-                if spawnDir == "east" then
-                    "west"
-
-                else
-                    "east"
+exitStation : TrackContext -> ActiveTrain -> String
+exitStation ctx train =
+    case Route.routeEndStation ctx train.route of
+        Just stationId ->
+            stationId
 
         Nothing ->
-            "east"
-
-
-lastRouteSegment : List RouteSegment -> Maybe RouteSegment
-lastRouteSegment segments =
-    case segments of
-        [] ->
-            Nothing
-
-        [ x ] ->
-            Just x
-
-        _ :: rest ->
-            lastRouteSegment rest
+            ctx.stations
+                |> List.map .id
+                |> List.filter ((/=) train.spawnPoint)
+                |> List.head
+                |> Maybe.withDefault train.spawnPoint

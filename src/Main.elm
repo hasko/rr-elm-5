@@ -9,6 +9,7 @@ Main entry point and application shell.
 import Browser
 import Browser.Events
 import Camera
+import Dict exposing (Dict)
 import Html exposing (Html, button, div, span, text)
 import Html.Attributes exposing (disabled, style)
 import Html.Events exposing (onClick)
@@ -22,8 +23,9 @@ import Programmer.Types as Programmer
 import Programmer.Update
 import Planning.View as PlanningView
 import Programmer.View as ProgrammerView
-import Sawmill.Layout as Layout exposing (ElementId(..), SwitchState(..))
+import Sawmill.Layout as Layout exposing (ElementId(..))
 import Scenario exposing (NodeType(..), Scenario)
+import Scenario.Layout
 import Simulation
 import Sawmill.View as SawmillView
 import Set exposing (Set)
@@ -32,6 +34,8 @@ import Svg exposing (Svg, svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
 import Time
+import Track.Element exposing (SwitchState(..))
+import Train.Route as Route
 import Train.Types exposing (ActiveTrain, TrainState(..))
 import Train.View as TrainView
 import Util.GameTime as GameTime exposing (GameTime)
@@ -80,13 +84,15 @@ type GameMode
 
 type alias Model =
     { scenario : Scenario
+    , layoutResult : Scenario.Layout.LayoutResult
+    , trackContext : Route.TrackContext
     , mode : GameMode
     , gameTime : GameTime
     , cameraState : Camera.CameraState
     , viewportSize : { width : Float, height : Float }
 
-    -- Sawmill puzzle state
-    , turnoutState : SwitchState
+    -- Puzzle state
+    , turnoutStates : Dict String SwitchState
     , hoveredElement : Maybe ElementId
 
     -- Planning state
@@ -112,22 +118,24 @@ appInit _ =
     )
 
 
-{-| Default model for a loaded scenario.
+{-| Default model for a loaded scenario with its computed layout.
 -}
-defaultModel : Scenario -> Model
-defaultModel scenario =
+defaultModel : Scenario -> Scenario.Layout.LayoutResult -> Model
+defaultModel scenario layoutResult =
     { scenario = scenario
+    , layoutResult = layoutResult
+    , trackContext = Route.makeTrackContext scenario layoutResult
     , mode = Planning
     , gameTime = GameTime.fromHourMinute 6 0
     , cameraState =
         { camera =
-            { center = Vec2.vec2 -50 60
+            { center = Vec2.vec2 200 60
             , zoom = 2.0 -- 2 pixels per meter
             }
         , dragState = Nothing
         }
     , viewportSize = { width = 800, height = 600 }
-    , turnoutState = Normal
+    , turnoutStates = layoutResult.turnoutStates
     , hoveredElement = Nothing
     , planningState = Planning.initPlanningState scenario.stations
     , activeTrains = []
@@ -193,7 +201,12 @@ appUpdate msg state =
         Loading ->
             case msg of
                 ScenarioLoaded (Ok scenario) ->
-                    ( Ready (defaultModel scenario), Cmd.none )
+                    case Scenario.Layout.buildLayout scenario of
+                        Ok layoutResult ->
+                            ( Ready (defaultModel scenario layoutResult), Cmd.none )
+
+                        Err layoutErr ->
+                            ( LoadFailed ("Invalid scenario track layout: " ++ layoutErr), Cmd.none )
 
                 ScenarioLoaded (Err err) ->
                     ( LoadFailed (httpErrorToString err), Cmd.none )
@@ -248,12 +261,12 @@ update msg model =
                         , spawnedTrainIds = model.spawnedTrainIds
                         , scheduledTrains = model.planningState.scheduledTrains
                         , inventories = model.planningState.inventories
-                        , turnoutState = model.turnoutState
+                        , turnoutStates = model.turnoutStates
                         , selectedTrainId = model.selectedTrainId
                         }
 
                     result =
-                        Simulation.tick deltaMs simState
+                        Simulation.tick model.trackContext deltaMs simState
 
                     planning =
                         model.planningState
@@ -263,7 +276,7 @@ update msg model =
                     , activeTrains = result.activeTrains
                     , spawnedTrainIds = result.spawnedTrainIds
                     , planningState = { planning | inventories = result.inventories }
-                    , turnoutState = result.turnoutState
+                    , turnoutStates = result.turnoutStates
                     , selectedTrainId = result.selectedTrainId
                   }
                 , Cmd.none
@@ -299,45 +312,43 @@ update msg model =
         ElementClicked elementId ->
             case elementId of
                 TurnoutId ->
-                    let
-                        newState =
-                            case model.turnoutState of
-                                Normal ->
-                                    Reverse
+                    -- The map shows a single turnout marker; it controls the
+                    -- scenario's first turnout node.
+                    case model.trackContext.turnoutNodes of
+                        turnoutNodeId :: _ ->
+                            let
+                                currentState =
+                                    Dict.get turnoutNodeId model.turnoutStates
+                                        |> Maybe.withDefault Normal
 
-                                Reverse ->
-                                    Normal
+                                newState =
+                                    case currentState of
+                                        Normal ->
+                                            Reverse
 
-                        rebuiltTrains =
-                            List.map (Simulation.rebuildIfBeforeTurnout newState) model.activeTrains
-                    in
-                    ( { model | turnoutState = newState, activeTrains = rebuiltTrains }, Cmd.none )
+                                        Reverse ->
+                                            Normal
+
+                                newStates =
+                                    Dict.insert turnoutNodeId newState model.turnoutStates
+
+                                rebuiltTrains =
+                                    List.map
+                                        (Simulation.rebuildIfBeforeTurnouts model.trackContext newStates [ turnoutNodeId ])
+                                        model.activeTrains
+                            in
+                            ( { model | turnoutStates = newStates, activeTrains = rebuiltTrains }, Cmd.none )
+
+                        [] ->
+                            ( model, Cmd.none )
 
                 TunnelPortalId ->
-                    -- Open planning panel with West station selected (left/west portal)
-                    let
-                        planning =
-                            model.planningState
-                    in
-                    ( { model
-                        | mode = Planning
-                        , planningState = { planning | selectedSpawnPoint = "west" }
-                      }
-                    , Cmd.none
-                    )
+                    -- Anchor portal (left): open planning with its linked station
+                    ( openPlanningForPortal 0 model, Cmd.none )
 
                 WestTunnelPortalId ->
-                    -- Open planning panel with East station selected (right/east portal)
-                    let
-                        planning =
-                            model.planningState
-                    in
-                    ( { model
-                        | mode = Planning
-                        , planningState = { planning | selectedSpawnPoint = "east" }
-                      }
-                    , Cmd.none
-                    )
+                    -- Far portal (right): open planning with its linked station
+                    ( openPlanningForPortal 1 model, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -571,6 +582,60 @@ update msg model =
 
 
 
+-- SCENARIO HELPERS
+
+
+{-| Open the planning panel with the station linked to the portal at the
+given index (in scenario portal definition order) selected.
+Keeps the current selection if the portal has no linked station.
+-}
+openPlanningForPortal : Int -> Model -> Model
+openPlanningForPortal portalIndex model =
+    let
+        planning =
+            model.planningState
+
+        selectedSpawnPoint =
+            Scenario.portalNodeIds model.scenario
+                |> List.drop portalIndex
+                |> List.head
+                |> Maybe.andThen (\portalId -> Scenario.stationForPortal portalId model.scenario)
+                |> Maybe.map .id
+                |> Maybe.withDefault planning.selectedSpawnPoint
+    in
+    { model
+        | mode = Planning
+        , planningState = { planning | selectedSpawnPoint = selectedSpawnPoint }
+    }
+
+
+{-| Display name of the portal at the given index (station name, or the
+portal node id if no station is linked).
+-}
+portalDisplayName : Int -> Model -> String
+portalDisplayName portalIndex model =
+    case Scenario.portalNodeIds model.scenario |> List.drop portalIndex |> List.head of
+        Just portalId ->
+            Scenario.stationForPortal portalId model.scenario
+                |> Maybe.map .name
+                |> Maybe.withDefault portalId
+
+        Nothing ->
+            ""
+
+
+{-| Switch state of the scenario's first turnout, for the map's single
+turnout indicator.
+-}
+displayedTurnoutState : Model -> SwitchState
+displayedTurnoutState model =
+    model.trackContext.turnoutNodes
+        |> List.head
+        |> Maybe.andThen (\nodeId -> Dict.get nodeId model.turnoutStates)
+        |> Maybe.withDefault Normal
+
+
+
 -- STORAGE HELPERS
 
 
@@ -590,13 +655,17 @@ extractSavedState model =
                 Paused ->
                     "Paused"
 
-        turnoutString =
-            case model.turnoutState of
-                Normal ->
-                    "Normal"
+        turnoutStrings =
+            Dict.map
+                (\_ state ->
+                    case state of
+                        Normal ->
+                            "Normal"
 
-                Reverse ->
-                    "Reverse"
+                        Reverse ->
+                            "Reverse"
+                )
+                model.turnoutStates
 
         -- Filter out trains that are exiting (position > route length)
         validTrains =
@@ -619,7 +688,7 @@ extractSavedState model =
         savedState =
             { gameTime = model.gameTime
             , mode = modeString
-            , turnoutState = turnoutString
+            , turnoutStates = turnoutStrings
             , activeTrains = savedTrains
             , spawnedTrainIds = Set.toList model.spawnedTrainIds
             , scheduledTrains = model.planningState.scheduledTrains
@@ -1188,7 +1257,11 @@ viewCanvas model =
                 Just elemId ->
                     let
                         maybeElem =
-                            Layout.interactiveElements model.turnoutState
+                            Layout.interactiveElements
+                                { turnoutState = displayedTurnoutState model
+                                , anchorPortalName = portalDisplayName 0 model
+                                , farPortalName = portalDisplayName 1 model
+                                }
                                 |> List.filter (\e -> e.id == elemId)
                                 |> List.head
                     in
@@ -1234,7 +1307,9 @@ viewCanvas model =
 
         -- Sawmill layout
         , SawmillView.view
-            { turnoutState = model.turnoutState
+            { turnoutState = displayedTurnoutState model
+            , anchorPortalName = portalDisplayName 0 model
+            , farPortalName = portalDisplayName 1 model
             , hoveredElement = model.hoveredElement
             , onElementClick = ElementClicked
             , onElementHover = ElementHovered

@@ -1,30 +1,38 @@
 module Train.Route exposing
-    ( buildRoute
-    , eastToWestRoute
+    ( TrackContext
+    , buildRoute
+    , elementStartDistance
+    , makeTrackContext
     , positionOnRoute
-    , rebuildRoute
+    , routeEndStation
+    , routeFromStation
     , spotPosition
+    , turnoutElements
     , turnoutStartDistance
-    , westToEastRoute
     )
 
 {-| Route building and position lookup for trains.
 
 Routes are built dynamically by walking the track layout graph,
-respecting turnout state to choose between through and diverging paths.
+respecting turnout states to choose between through and diverging paths.
+
+All scenario-specific knowledge (which element is a portal, where spots
+sit, which elements are turnouts) comes from the `TrackContext`, built
+from the loaded scenario and its computed layout.
 
 -}
 
 import Array
-import Planning.Types
-import Programmer.Types
-import Sawmill.Layout exposing (SwitchState(..), trackLayout)
+import Dict exposing (Dict)
+import Scenario exposing (Scenario, Station)
+import Scenario.Layout exposing (LayoutResult, SpotLocation)
 import Track.Element as Element
     exposing
         ( Connector
         , ElementId(..)
         , Hand(..)
         , PlacedElement
+        , SwitchState(..)
         , TrackElementType(..)
         )
 import Track.Layout as Layout exposing (Layout)
@@ -32,65 +40,130 @@ import Train.Types exposing (Route, RouteSegment, SegmentGeometry(..))
 import Util.Vec2 as Vec2 exposing (Vec2, vec2)
 
 
-{-| Build the East-to-West route respecting turnout state.
 
-Starts from element 0 (east tunnel portal) connector 0,
-walks through the layout following connections.
+-- CONTEXT
 
+
+{-| Everything route building needs to know about the world:
+the computed track layout plus lookups from scenario ids to elements.
 -}
-eastToWestRoute : SwitchState -> Route
-eastToWestRoute switchState =
-    buildRoute (ElementId 0) 0 switchState trackLayout
+type alias TrackContext =
+    { layout : Layout
+    , nodeElementMap : Dict String ElementId
+    , spotLocations : Dict String SpotLocation
+    , stations : List Station
+    , turnoutNodes : List String
+    }
 
 
-{-| Build the West-to-East route respecting turnout state.
+{-| Build a TrackContext from a loaded scenario and its layout result.
 -}
-westToEastRoute : SwitchState -> Route
-westToEastRoute switchState =
-    buildRoute (ElementId 7) 0 switchState trackLayout
+makeTrackContext : Scenario -> LayoutResult -> TrackContext
+makeTrackContext scenario layoutResult =
+    { layout = layoutResult.layout
+    , nodeElementMap = layoutResult.nodeElementMap
+    , spotLocations = layoutResult.spotLocations
+    , stations = scenario.stations
+    , turnoutNodes =
+        scenario.track.nodes
+            |> List.filterMap
+                (\node ->
+                    case node.nodeType of
+                        Scenario.Turnout _ ->
+                            Just node.id
+
+                        _ ->
+                            Nothing
+                )
+    }
 
 
-{-| Rebuild a route for a spawn point with a new switch state.
-
-The train's position (distance along route) remains valid because
-route segments before the turnout divergence are identical regardless
-of switch state. After the turnout, the route takes the new path.
-
+{-| The turnout nodes with their track elements.
 -}
-rebuildRoute : String -> SwitchState -> Route
-rebuildRoute spawnPoint switchState =
-    if spawnPoint == "east" then
-        eastToWestRoute switchState
+turnoutElements : TrackContext -> List ( String, ElementId )
+turnoutElements ctx =
+    ctx.turnoutNodes
+        |> List.filterMap
+            (\nodeId ->
+                Dict.get nodeId ctx.nodeElementMap
+                    |> Maybe.map (Tuple.pair nodeId)
+            )
 
-    else
-        westToEastRoute switchState
+
+
+-- ROUTE BUILDING
+
+
+{-| Build the route a train travels when departing from the given station,
+walking away from the station's portal and respecting turnout states.
+Returns an empty route if the station or its portal is unknown.
+-}
+routeFromStation : TrackContext -> Dict String SwitchState -> String -> Route
+routeFromStation ctx switchStates stationId =
+    case stationPortalElement ctx stationId of
+        Just portalElem ->
+            buildRoute ctx switchStates portalElem 0
+
+        Nothing ->
+            emptyRoute
+
+
+stationPortalElement : TrackContext -> String -> Maybe ElementId
+stationPortalElement ctx stationId =
+    ctx.stations
+        |> List.filter (\s -> s.id == stationId)
+        |> List.head
+        |> Maybe.andThen (\s -> Dict.get s.portal ctx.nodeElementMap)
+
+
+emptyRoute : Route
+emptyRoute =
+    { segments = [], totalLength = 0 }
 
 
 {-| Build a route by walking the track layout graph from a starting connector.
 
 Starting from the given element's connector, we:
-1. Follow the connection to enter the first track element
-2. Determine the exit connector for that element (based on turnout state)
-3. Build a route segment for the traversal
-4. Follow the connection from the exit connector to the next element
-5. Repeat until we reach a TrackEnd or dead end
+
+1.  Follow the connection to enter the first track element
+2.  Determine the exit connector for that element (based on turnout state)
+3.  Build a route segment for the traversal
+4.  Follow the connection from the exit connector to the next element
+5.  Repeat until we reach a TrackEnd or dead end
 
 -}
-buildRoute : ElementId -> Int -> SwitchState -> Layout -> Route
-buildRoute startElementId startConnIdx switchState layout =
-    case Layout.findConnected startElementId startConnIdx layout of
+buildRoute : TrackContext -> Dict String SwitchState -> ElementId -> Int -> Route
+buildRoute ctx switchStates startElementId startConnIdx =
+    case Layout.findConnected startElementId startConnIdx ctx.layout of
         Nothing ->
             -- Start point has no connection, empty route
-            { segments = [], totalLength = 0 }
+            emptyRoute
 
         Just ( firstElementId, entryConnIdx ) ->
             let
+                elementStates =
+                    elementSwitchStates ctx switchStates
+
                 segments =
-                    walkGraph firstElementId entryConnIdx switchState layout [] 0.0 20
+                    walkGraph firstElementId entryConnIdx elementStates ctx.layout [] 0.0 20
             in
             { segments = segments
             , totalLength = List.foldl (\s acc -> acc + s.length) 0 segments
             }
+
+
+{-| Resolve turnout switch states from node ids to element ids.
+-}
+elementSwitchStates : TrackContext -> Dict String SwitchState -> Dict Int SwitchState
+elementSwitchStates ctx switchStates =
+    ctx.nodeElementMap
+        |> Dict.toList
+        |> List.filterMap
+            (\( nodeId, ElementId n ) ->
+                Dict.get nodeId switchStates
+                    |> Maybe.map (Tuple.pair n)
+            )
+        |> Dict.fromList
 
 
 {-| Walk the track graph, building route segments.
@@ -101,13 +174,13 @@ The maxSteps parameter prevents infinite loops in case of circular tracks.
 walkGraph :
     ElementId
     -> Int
-    -> SwitchState
+    -> Dict Int SwitchState
     -> Layout
     -> List RouteSegment
     -> Float
     -> Int
     -> List RouteSegment
-walkGraph elementId entryConnIdx switchState layout accSegments accDistance maxSteps =
+walkGraph elementId entryConnIdx elementStates layout accSegments accDistance maxSteps =
     if maxSteps <= 0 then
         accSegments
 
@@ -125,6 +198,12 @@ walkGraph elementId entryConnIdx switchState layout accSegments accDistance maxS
                     _ ->
                         -- Determine exit connector
                         let
+                            switchState =
+                                case elementId of
+                                    ElementId n ->
+                                        Dict.get n elementStates
+                                            |> Maybe.withDefault Normal
+
                             exitConnIdx =
                                 exitConnectorForElement element.elementType entryConnIdx switchState
                         in
@@ -144,7 +223,7 @@ walkGraph elementId entryConnIdx switchState layout accSegments accDistance maxS
                                         walkGraph
                                             nextElementId
                                             nextEntryConnIdx
-                                            switchState
+                                            elementStates
                                             layout
                                             (accSegments ++ [ segment ])
                                             (accDistance + segment.length)
@@ -360,80 +439,28 @@ normalizeSweep rawSweep expectedSweep =
 
 
 
--- TURNOUT DISTANCE
+-- TURNOUT DISTANCES
 
 
-{-| Find the cumulative distance where the turnout element (ElementId 2)
-begins in a route. Returns Nothing if the turnout is not on the route.
+{-| Find the cumulative distance where a given element begins in a route.
+Returns Nothing if the element is not on the route.
 -}
-turnoutStartDistance : Route -> Maybe Float
-turnoutStartDistance route =
-    findTurnoutStart route.segments
+elementStartDistance : ElementId -> Route -> Maybe Float
+elementStartDistance elementId route =
+    route.segments
+        |> List.filter (\s -> s.elementId == elementId)
+        |> List.head
+        |> Maybe.map .startDistance
 
 
-findTurnoutStart : List RouteSegment -> Maybe Float
-findTurnoutStart segments =
-    case segments of
-        [] ->
-            Nothing
-
-        segment :: rest ->
-            if segment.elementId == ElementId 2 then
-                Just segment.startDistance
-
-            else
-                findTurnoutStart rest
-
-
-
--- REVERSE
-
-
-{-| Reverse a route for travel in opposite direction.
+{-| The cumulative distance where the first turnout on the route begins.
+Returns Nothing if no turnout is on the route.
 -}
-reverseRoute : Route -> Route
-reverseRoute route =
-    let
-        reversedSegments =
-            route.segments
-                |> List.reverse
-                |> List.indexedMap
-                    (\idx seg ->
-                        let
-                            newStartDistance =
-                                List.take idx (List.reverse route.segments)
-                                    |> List.foldl (\s acc -> acc + s.length) 0
-                        in
-                        { seg
-                            | startDistance = newStartDistance
-                            , geometry = reverseGeometry seg.geometry
-                        }
-                    )
-    in
-    { segments = reversedSegments
-    , totalLength = route.totalLength
-    }
-
-
-{-| Reverse the geometry of a segment.
--}
-reverseGeometry : SegmentGeometry -> SegmentGeometry
-reverseGeometry geom =
-    case geom of
-        StraightGeometry { start, end, orientation } ->
-            StraightGeometry
-                { start = end
-                , end = start
-                , orientation = Element.normalizeAngle (orientation + pi)
-                }
-
-        ArcGeometry { center, radius, startAngle, sweep } ->
-            ArcGeometry
-                { center = center
-                , radius = radius
-                , startAngle = startAngle + sweep
-                , sweep = -sweep
-                }
+turnoutStartDistance : TrackContext -> Route -> Maybe Float
+turnoutStartDistance ctx route =
+    turnoutElements ctx
+        |> List.filterMap (\( _, elemId ) -> elementStartDistance elemId route)
+        |> List.minimum
 
 
 
@@ -526,146 +553,76 @@ interpolateGeometry t geom =
 -- SPOT POSITION MAPPING
 
 
-{-| A spot's physical location on the track: which element and how far
-along that element from connector 0 (the element's native start).
--}
-type alias SpotLocation =
-    { elementId : ElementId
-    , localDistance : Float -- meters from connector 0
-    , elementLength : Float -- total length of the element
-    }
+{-| Get the route distance for a spot or node target on the given route.
 
+Spot ids resolve through the scenario's spot locations (a point along a
+track element). Node ids (portals, buffers) resolve to the start or end
+of the route if the route touches that node.
 
-{-| Get the physical location of a spot on the track layout.
-
-Distances are measured from the element's connector 0 along its travel direction:
-
-  - PlatformSpot: 60m along siding straight (element 5, 150m total)
-  - TeamTrackSpot: 120m along siding straight (element 5, 150m total)
-  - EastTunnelSpot: at east tunnel portal (element 0, TrackEnd)
-  - WestTunnelSpot: at west tunnel portal (element 7, TrackEnd)
+Returns Nothing if the target is not reachable on this route.
 
 -}
-spotLocation : String -> SpotLocation
-spotLocation spotId =
-    if spotId == "platform" then
-        { elementId = ElementId 5
-        , localDistance = 60.0
-        , elementLength = 150.0
-        }
+spotPosition : TrackContext -> String -> Route -> Maybe Float
+spotPosition ctx spotId route =
+    case Dict.get spotId ctx.spotLocations of
+        Just location ->
+            findSpotOnRoute ctx location route
 
-    else if spotId == "team-track" then
-        { elementId = ElementId 5
-        , localDistance = 120.0
-        , elementLength = 150.0
-        }
-
-    else if spotId == "e-portal" then
-        { elementId = ElementId 0
-        , localDistance = 0.0
-        , elementLength = 0.0
-        }
-
-    else
-        -- w-portal or unknown
-        { elementId = ElementId 7
-        , localDistance = 0.0
-        , elementLength = 0.0
-        }
+        Nothing ->
+            Dict.get spotId ctx.nodeElementMap
+                |> Maybe.andThen (\nodeElem -> nodePositionOnRoute ctx nodeElem route)
 
 
-{-| Get the route distance for a spot on the given route.
-
-Returns Nothing if the spot's element is not part of the route
-(e.g., PlatformSpot is not reachable on the mainline-through route).
-
+{-| Route distance of a node's element (portal/buffer), if the route
+starts or ends at that node's connector.
 -}
-spotPosition : String -> Route -> Maybe Float
-spotPosition spotId route =
-    if spotId == "e-portal" then
-        if routeStartsFromEast route then
-            Just 0.0
+nodePositionOnRoute : TrackContext -> ElementId -> Route -> Maybe Float
+nodePositionOnRoute ctx nodeElem route =
+    Layout.getConnector nodeElem 0 ctx.layout
+        |> Maybe.andThen
+            (\conn ->
+                let
+                    isAt dist =
+                        positionOnRoute dist route
+                            |> Maybe.map (\p -> Vec2.distance p.position conn.position < 1.0)
+                            |> Maybe.withDefault False
+                in
+                if isAt 0.0 then
+                    Just 0.0
 
-        else if routeEndsAtEast route then
-            Just route.totalLength
+                else if isAt route.totalLength then
+                    Just route.totalLength
 
-        else
-            Nothing
-
-    else if spotId == "w-portal" then
-        if routeStartsFromWest route then
-            Just 0.0
-
-        else if routeEndsAtWest route then
-            Just route.totalLength
-
-        else
-            Nothing
-
-    else
-        findSpotOnRoute (spotLocation spotId) route
+                else
+                    Nothing
+            )
 
 
-routeStartsFromEast : Route -> Bool
-routeStartsFromEast route =
-    case List.head route.segments of
-        Just segment ->
-            segment.elementId == ElementId 1
+{-| The station whose portal sits at the end of this route, if any.
+-}
+routeEndStation : TrackContext -> Route -> Maybe String
+routeEndStation ctx route =
+    ctx.stations
+        |> List.filter
+            (\station ->
+                case Dict.get station.portal ctx.nodeElementMap of
+                    Just portalElem ->
+                        nodePositionOnRoute ctx portalElem route == Just route.totalLength
 
-        Nothing ->
-            False
-
-
-routeEndsAtEast : Route -> Bool
-routeEndsAtEast route =
-    case lastElement route.segments of
-        Just segment ->
-            segment.elementId == ElementId 1
-
-        Nothing ->
-            False
+                    Nothing ->
+                        False
+            )
+        |> List.head
+        |> Maybe.map .id
 
 
-routeStartsFromWest : Route -> Bool
-routeStartsFromWest route =
-    case List.head route.segments of
-        Just segment ->
-            segment.elementId == ElementId 3
-
-        Nothing ->
-            False
+findSpotOnRoute : TrackContext -> SpotLocation -> Route -> Maybe Float
+findSpotOnRoute ctx location route =
+    findSpotOnRouteHelper ctx location route.segments
 
 
-routeEndsAtWest : Route -> Bool
-routeEndsAtWest route =
-    case lastElement route.segments of
-        Just segment ->
-            segment.elementId == ElementId 3
-
-        Nothing ->
-            False
-
-
-lastElement : List a -> Maybe a
-lastElement list =
-    case list of
-        [] ->
-            Nothing
-
-        [ x ] ->
-            Just x
-
-        _ :: rest ->
-            lastElement rest
-
-
-findSpotOnRoute : SpotLocation -> Route -> Maybe Float
-findSpotOnRoute location route =
-    findSpotOnRouteHelper location route.segments
-
-
-findSpotOnRouteHelper : SpotLocation -> List RouteSegment -> Maybe Float
-findSpotOnRouteHelper location segments =
+findSpotOnRouteHelper : TrackContext -> SpotLocation -> List RouteSegment -> Maybe Float
+findSpotOnRouteHelper ctx location segments =
     case segments of
         [] ->
             Nothing
@@ -674,7 +631,7 @@ findSpotOnRouteHelper location segments =
             if segment.elementId == location.elementId then
                 let
                     isReversed =
-                        isSegmentReversed segment
+                        isSegmentReversed ctx segment
 
                     adjustedLocal =
                         if isReversed then
@@ -686,17 +643,17 @@ findSpotOnRouteHelper location segments =
                 Just (segment.startDistance + adjustedLocal)
 
             else
-                findSpotOnRouteHelper location rest
+                findSpotOnRouteHelper ctx location rest
 
 
-isSegmentReversed : RouteSegment -> Bool
-isSegmentReversed segment =
+isSegmentReversed : TrackContext -> RouteSegment -> Bool
+isSegmentReversed ctx segment =
     let
         segmentStart =
             geometryStartPosition segment.geometry
 
         maybeConn0 =
-            Layout.getConnector segment.elementId 0 trackLayout
+            Layout.getConnector segment.elementId 0 ctx.layout
     in
     case maybeConn0 of
         Just conn0 ->

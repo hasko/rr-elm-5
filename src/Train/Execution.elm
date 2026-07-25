@@ -13,7 +13,7 @@ Each tick, trains with a program advance through their orders:
 -}
 
 import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotTarget(..))
-import Train.Route as Route
+import Train.Route as Route exposing (TrackContext)
 import Train.Stock exposing (carCenterOffset, consistLength)
 import Train.Types exposing (ActiveTrain, Effect(..), Route, TrainState(..))
 
@@ -58,11 +58,11 @@ maxSpeed =
 Returns the updated train and any side effects.
 
 -}
-stepProgram : Float -> ActiveTrain -> ( ActiveTrain, List Effect )
-stepProgram deltaSeconds train =
+stepProgram : TrackContext -> Float -> ActiveTrain -> ( ActiveTrain, List Effect )
+stepProgram ctx deltaSeconds train =
     case train.trainState of
         Executing ->
-            executeCurrentOrder deltaSeconds train
+            executeCurrentOrder ctx deltaSeconds train
 
         WaitingForOrders ->
             -- No program or program complete, coast to stop
@@ -75,8 +75,8 @@ stepProgram deltaSeconds train =
 
 {-| Execute the current order based on programCounter.
 -}
-executeCurrentOrder : Float -> ActiveTrain -> ( ActiveTrain, List Effect )
-executeCurrentOrder deltaSeconds train =
+executeCurrentOrder : TrackContext -> Float -> ActiveTrain -> ( ActiveTrain, List Effect )
+executeCurrentOrder ctx deltaSeconds train =
     case getOrder train.programCounter train.program of
         Nothing ->
             -- Program complete
@@ -85,7 +85,7 @@ executeCurrentOrder deltaSeconds train =
         Just order ->
             case order of
                 MoveTo spotId spotTarget ->
-                    executeMoveTo deltaSeconds spotId spotTarget train
+                    executeMoveTo ctx deltaSeconds spotId spotTarget train
 
                 SetReverser pos ->
                     -- Instant: set reverser and advance
@@ -121,9 +121,9 @@ executeCurrentOrder deltaSeconds train =
 
 {-| Execute a MoveTo order: accelerate toward target, brake to stop.
 -}
-executeMoveTo : Float -> String -> SpotTarget -> ActiveTrain -> ( ActiveTrain, List Effect )
-executeMoveTo deltaSeconds spotId spotTarget train =
-    case Route.spotPosition spotId train.route of
+executeMoveTo : TrackContext -> Float -> String -> SpotTarget -> ActiveTrain -> ( ActiveTrain, List Effect )
+executeMoveTo ctx deltaSeconds spotId spotTarget train =
+    case Route.spotPosition ctx spotId train.route of
         Nothing ->
             -- Spot not reachable on this route
             ( { train

@@ -4,6 +4,7 @@ module Track.Element exposing
     , ElementId(..)
     , Hand(..)
     , PlacedElement
+    , SwitchState(..)
     , TrackElementType(..)
     , computeConnectors
     , connectorCount
@@ -50,6 +51,14 @@ type ElementId
 type Hand
     = LeftHand -- diverges counter-clockwise (left when facing forward)
     | RightHand -- diverges clockwise (right when facing forward)
+
+
+{-| Position of a turnout's switch blades.
+Normal routes toe -> through, Reverse routes toe -> diverge.
+-}
+type SwitchState
+    = Normal
+    | Reverse
 
 
 {-| Track element types with their defining parameters.
