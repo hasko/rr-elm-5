@@ -111,7 +111,8 @@ appInit : () -> ( AppState, Cmd Msg )
 appInit _ =
     ( Loading
     , Http.get
-        { url = "/scenarios/sawmill.json"
+        { -- Relative, so it resolves under the deploy base path (/rr-elm-5/ on Pages)
+          url = "scenarios/sawmill.json"
         , expect = Http.expectJson ScenarioLoaded Scenario.decoder
         }
     )
