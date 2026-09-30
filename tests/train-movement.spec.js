@@ -129,9 +129,9 @@ test.describe('Train Movement', () => {
     await page.getByRole('button', { name: 'Pause' }).click();
   });
 
-  test.skip('Train eventually exits the track', async ({ page }) => {
-    // NOTE: This test is skipped because it takes ~50 seconds to complete
-    // The route is 500m and train speed is ~11.1 m/s
+  test('Train eventually exits the track', async ({ page }) => {
+    // The route is 500m and train speed is ~11.1 m/s; run at 8x so it
+    // takes a few seconds instead of ~45.
     // Schedule a train
     const locomotiveStock = page.getByTestId('stock-locomotive');
     await locomotiveStock.click();
@@ -143,19 +143,19 @@ test.describe('Train Movement', () => {
 
     const canvas = page.locator('svg').first();
 
-    // Start simulation
+    // Start simulation at 8x
     await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await page.getByRole('button', { name: '8x' }).click();
 
     // Wait for train to spawn (poll instead of fixed timeout)
     let trainCar = canvas.getByTestId('train-car-locomotive');
     await expect(trainCar).toHaveCount(1, { timeout: 10000 });
 
-    // Route is 500m, train speed is ~11.1 m/s, so ~45 seconds to traverse
-    // Wait up to 60 seconds for train to exit
+    // ~45 game-seconds to traverse, ~6 s of wall time at 8x
     await expect(async () => {
       const count = await canvas.getByTestId('train-car-locomotive').count();
       expect(count).toBe(0);
-    }).toPass({ timeout: 60000 });
+    }).toPass({ timeout: 30000 });
 
     // Pause
     await page.getByRole('button', { name: 'Pause' }).click();
