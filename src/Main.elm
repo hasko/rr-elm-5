@@ -16,8 +16,7 @@ import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Planning.Helpers exposing (returnStockToInventory)
-import Planning.Types as Planning exposing (PanelMode(..), StockItem, StockType(..))
+import Planning.Types as Planning exposing (PanelMode(..), StockItem)
 import Planning.Update
 import Planning.View as PlanningView
 import Programmer.Types as Programmer
@@ -366,28 +365,10 @@ update msg model =
             ( { model | mode = Paused }, Cmd.none )
 
         SelectSpawnPoint spawnId ->
-            let
-                planning =
-                    model.planningState
-            in
-            ( { model | planningState = { planning | selectedSpawnPoint = spawnId } }
-            , Cmd.none
-            )
+            ( { model | planningState = Planning.Update.selectSpawnPoint spawnId model.planningState }, Cmd.none )
 
         SelectStockItem stock ->
-            let
-                planning =
-                    model.planningState
-
-                builder =
-                    planning.consistBuilder
-
-                newBuilder =
-                    { builder | selectedStock = Just stock }
-            in
-            ( { model | planningState = { planning | consistBuilder = newBuilder } }
-            , Cmd.none
-            )
+            ( { model | planningState = Planning.Update.selectStockItem stock model.planningState }, Cmd.none )
 
         AddToConsistFront ->
             ( { model | planningState = Planning.Update.addToConsist True model.planningState }, Cmd.none )
@@ -402,135 +383,28 @@ update msg model =
             ( { model | planningState = Planning.Update.removeFromConsist index model.planningState }, Cmd.none )
 
         ClearConsistBuilder ->
-            let
-                planning =
-                    model.planningState
-
-                -- Return all stock from builder to inventory
-                stockToReturn =
-                    planning.consistBuilder.items
-
-                newInventories =
-                    returnStockToInventory planning.selectedSpawnPoint stockToReturn planning.inventories
-            in
-            ( { model
-                | planningState =
-                    { planning
-                        | consistBuilder = Planning.emptyConsistBuilder
-                        , inventories = newInventories
-                        , editingTrainId = Nothing
-                        , consistPanOffset = 0
-                    }
-              }
-            , Cmd.none
-            )
+            ( { model | planningState = Planning.Update.clearConsistBuilder model.planningState }, Cmd.none )
 
         FlipLocoInConsist index ->
-            let
-                planning =
-                    model.planningState
-
-                builder =
-                    planning.consistBuilder
-
-                newItems =
-                    List.indexedMap
-                        (\i item ->
-                            if i == index && item.stockType == Locomotive then
-                                { item | reversed = not item.reversed }
-
-                            else
-                                item
-                        )
-                        builder.items
-
-                newBuilder =
-                    { builder | items = newItems }
-            in
-            ( { model | planningState = { planning | consistBuilder = newBuilder } }
-            , Cmd.none
-            )
+            ( { model | planningState = Planning.Update.flipLocoInConsist index model.planningState }, Cmd.none )
 
         ConsistDragStart screenX ->
-            let
-                planning =
-                    model.planningState
-            in
-            ( { model
-                | planningState =
-                    { planning
-                        | consistDragState =
-                            Just
-                                { startX = screenX
-                                , startOffset = planning.consistPanOffset
-                                }
-                    }
-              }
-            , Cmd.none
-            )
+            ( { model | planningState = Planning.Update.startConsistDrag screenX model.planningState }, Cmd.none )
 
         ConsistDragMove screenX ->
-            let
-                planning =
-                    model.planningState
-            in
-            case planning.consistDragState of
-                Just drag ->
-                    let
-                        deltaX =
-                            screenX - drag.startX
-
-                        newOffset =
-                            drag.startOffset + deltaX
-                    in
-                    ( { model
-                        | planningState =
-                            { planning | consistPanOffset = newOffset }
-                      }
-                    , Cmd.none
-                    )
-
-                Nothing ->
-                    ( model, Cmd.none )
+            ( { model | planningState = Planning.Update.moveConsistDrag screenX model.planningState }, Cmd.none )
 
         ConsistDragEnd ->
-            let
-                planning =
-                    model.planningState
-            in
-            ( { model
-                | planningState =
-                    { planning | consistDragState = Nothing }
-              }
-            , Cmd.none
-            )
+            ( { model | planningState = Planning.Update.endConsistDrag model.planningState }, Cmd.none )
 
         SetTimePickerHour hour ->
-            let
-                planning =
-                    model.planningState
-            in
-            ( { model | planningState = { planning | timePickerHour = hour } }
-            , Cmd.none
-            )
+            ( { model | planningState = Planning.Update.setTimePickerHour hour model.planningState }, Cmd.none )
 
         SetTimePickerMinute minute ->
-            let
-                planning =
-                    model.planningState
-            in
-            ( { model | planningState = { planning | timePickerMinute = minute } }
-            , Cmd.none
-            )
+            ( { model | planningState = Planning.Update.setTimePickerMinute minute model.planningState }, Cmd.none )
 
         SetTimePickerDay day ->
-            let
-                planning =
-                    model.planningState
-            in
-            ( { model | planningState = { planning | timePickerDay = day } }
-            , Cmd.none
-            )
+            ( { model | planningState = Planning.Update.setTimePickerDay day model.planningState }, Cmd.none )
 
         ScheduleTrain ->
             ( { model | planningState = Planning.Update.scheduleTrain model.planningState }, Cmd.none )

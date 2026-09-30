@@ -1,77 +1,76 @@
 module Planning.Update exposing
     ( addToConsist
+    , clearConsistBuilder
+    , endConsistDrag
+    , flipLocoInConsist
     , insertInConsist
+    , moveConsistDrag
     , removeFromConsist
     , removeScheduledTrain
     , scheduleTrain
     , selectScheduledTrain
+    , selectSpawnPoint
+    , selectStockItem
+    , setTimePickerDay
+    , setTimePickerHour
+    , setTimePickerMinute
+    , startConsistDrag
     )
 
 {-| Update logic for planning state: consist builder and train scheduling.
 -}
 
 import Planning.Helpers exposing (returnStockToInventory, takeStockFromInventory)
-import Planning.Types exposing (PlanningState, StockType(..), emptyConsistBuilder)
+import Planning.Types exposing (PlanningState, StockItem, StockType(..), emptyConsistBuilder)
 import Programmer.Types as Programmer
 import Util.GameTime as GameTime
+
+
+{-| Switch the station whose inventory the consist builder draws from.
+-}
+selectSpawnPoint : String -> PlanningState -> PlanningState
+selectSpawnPoint spawnId planning =
+    { planning | selectedSpawnPoint = spawnId }
+
+
+{-| Pick a stock type to place into the consist.
+-}
+selectStockItem : StockItem -> PlanningState -> PlanningState
+selectStockItem stock planning =
+    let
+        builder =
+            planning.consistBuilder
+    in
+    { planning | consistBuilder = { builder | selectedStock = Just stock } }
 
 
 {-| Add selected stock item to consist (front or back).
 -}
 addToConsist : Bool -> PlanningState -> PlanningState
-addToConsist toFront planning =
-    let
-        builder =
-            planning.consistBuilder
-    in
-    case builder.selectedStock of
-        Nothing ->
-            planning
+addToConsist toFront =
+    placeSelectedStock
+        (\stock items ->
+            if toFront then
+                stock :: items
 
-        Just selectedStock ->
-            let
-                -- Try to take one item of this type from inventory
-                ( maybeActualStock, newInventories ) =
-                    takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
-
-                -- If not available, create a provisional item
-                ( stockToAdd, finalInventories, finalProvisionalId ) =
-                    case maybeActualStock of
-                        Just actualStock ->
-                            ( actualStock, newInventories, planning.nextProvisionalId )
-
-                        Nothing ->
-                            ( { id = planning.nextProvisionalId
-                              , stockType = selectedStock.stockType
-                              , reversed = False
-                              , provisional = True
-                              }
-                            , planning.inventories
-                            , planning.nextProvisionalId - 1
-                            )
-
-                -- Add to front or back
-                newItems =
-                    if toFront then
-                        stockToAdd :: builder.items
-
-                    else
-                        builder.items ++ [ stockToAdd ]
-
-                newBuilder =
-                    { builder | items = newItems }
-            in
-            { planning
-                | consistBuilder = newBuilder
-                , inventories = finalInventories
-                , nextProvisionalId = finalProvisionalId
-            }
+            else
+                items ++ [ stock ]
+        )
 
 
 {-| Insert selected stock into consist at specified index.
 -}
 insertInConsist : Int -> PlanningState -> PlanningState
-insertInConsist index planning =
+insertInConsist index =
+    placeSelectedStock
+        (\stock items -> List.take index items ++ stock :: List.drop index items)
+
+
+{-| Take one of the selected stock type from the station inventory (or create
+a provisional item if none is available) and place it with `place`.
+-}
+placeSelectedStock : (StockItem -> List StockItem -> List StockItem) -> PlanningState -> PlanningState
+placeSelectedStock place planning =
     let
         builder =
             planning.consistBuilder
@@ -82,17 +81,12 @@ insertInConsist index planning =
 
         Just selectedStock ->
             let
-                -- Try to take one item of this type from inventory
-                ( maybeActualStock, newInventories ) =
-                    takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories
-
-                -- If not available, create a provisional item
                 ( stockToAdd, finalInventories, finalProvisionalId ) =
-                    case maybeActualStock of
-                        Just actualStock ->
+                    case takeStockFromInventory planning.selectedSpawnPoint selectedStock.stockType planning.inventories of
+                        ( Just actualStock, newInventories ) ->
                             ( actualStock, newInventories, planning.nextProvisionalId )
 
-                        Nothing ->
+                        ( Nothing, _ ) ->
                             ( { id = planning.nextProvisionalId
                               , stockType = selectedStock.stockType
                               , reversed = False
@@ -101,21 +95,99 @@ insertInConsist index planning =
                             , planning.inventories
                             , planning.nextProvisionalId - 1
                             )
-
-                -- Insert at specified index
-                newItems =
-                    List.take index builder.items
-                        ++ [ stockToAdd ]
-                        ++ List.drop index builder.items
-
-                newBuilder =
-                    { builder | items = newItems }
             in
             { planning
-                | consistBuilder = newBuilder
+                | consistBuilder = { builder | items = place stockToAdd builder.items }
                 , inventories = finalInventories
                 , nextProvisionalId = finalProvisionalId
             }
+
+
+{-| Return all stock in the builder to inventory and reset the builder.
+-}
+clearConsistBuilder : PlanningState -> PlanningState
+clearConsistBuilder planning =
+    { planning
+        | consistBuilder = emptyConsistBuilder
+        , inventories = returnStockToInventory planning.selectedSpawnPoint planning.consistBuilder.items planning.inventories
+        , editingTrainId = Nothing
+        , consistPanOffset = 0
+    }
+
+
+{-| Turn a locomotive in the consist around. Other stock is unaffected.
+-}
+flipLocoInConsist : Int -> PlanningState -> PlanningState
+flipLocoInConsist index planning =
+    let
+        builder =
+            planning.consistBuilder
+
+        newItems =
+            List.indexedMap
+                (\i item ->
+                    if i == index && item.stockType == Locomotive then
+                        { item | reversed = not item.reversed }
+
+                    else
+                        item
+                )
+                builder.items
+    in
+    { planning | consistBuilder = { builder | items = newItems } }
+
+
+{-| Begin panning the consist strip at the given screen X.
+-}
+startConsistDrag : Float -> PlanningState -> PlanningState
+startConsistDrag screenX planning =
+    { planning
+        | consistDragState =
+            Just
+                { startX = screenX
+                , startOffset = planning.consistPanOffset
+                }
+    }
+
+
+{-| Pan the consist strip to follow the pointer, if a drag is in progress.
+-}
+moveConsistDrag : Float -> PlanningState -> PlanningState
+moveConsistDrag screenX planning =
+    case planning.consistDragState of
+        Just drag ->
+            { planning | consistPanOffset = drag.startOffset + screenX - drag.startX }
+
+        Nothing ->
+            planning
+
+
+{-| Finish panning the consist strip.
+-}
+endConsistDrag : PlanningState -> PlanningState
+endConsistDrag planning =
+    { planning | consistDragState = Nothing }
+
+
+{-| Set the departure hour in the time picker.
+-}
+setTimePickerHour : Int -> PlanningState -> PlanningState
+setTimePickerHour hour planning =
+    { planning | timePickerHour = hour }
+
+
+{-| Set the departure minute in the time picker.
+-}
+setTimePickerMinute : Int -> PlanningState -> PlanningState
+setTimePickerMinute minute planning =
+    { planning | timePickerMinute = minute }
+
+
+{-| Set the departure day in the time picker.
+-}
+setTimePickerDay : Int -> PlanningState -> PlanningState
+setTimePickerDay day planning =
+    { planning | timePickerDay = day }
 
 
 {-| Remove stock from consist at index and return to inventory.

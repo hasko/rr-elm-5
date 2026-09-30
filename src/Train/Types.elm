@@ -36,7 +36,7 @@ type alias ActiveTrain =
     { id : Int
     , consist : List StockItem
     , position : Float -- Distance of lead car front along route (meters)
-    , speed : Float -- m/s (positive = forward along route)
+    , speed : Float -- m/s, magnitude only; the reverser gives the direction
     , route : Route
     , spawnPoint : String -- Station ID this train departs from
     , program : List Order
@@ -77,5 +77,5 @@ type SegmentGeometry
         { center : Vec2
         , radius : Float
         , startAngle : Float -- radians, angle at segment start
-        , sweep : Float -- radians, positive = CCW
+        , sweep : Float -- radians, positive = clockwise
         }

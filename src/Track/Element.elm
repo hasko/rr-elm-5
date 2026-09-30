@@ -15,10 +15,10 @@ module Track.Element exposing
 
 {-| Track element types and geometry computation.
 
-Coordinates use math convention:
+Coordinates use screen convention (same as SVG, no flip):
 
-  - 0° = East, angles increase counter-clockwise
-  - Y increases northward (flipped for SVG rendering)
+  - 0° = North (-Y), angles increase clockwise (90° = East, +X)
+  - Y increases southward (down)
 
 -}
 
@@ -68,7 +68,7 @@ type TrackElementType
     = StraightTrack Float -- length in meters
     | CurvedTrack
         { radius : Float -- meters
-        , sweep : Float -- radians, positive = left/CCW
+        , sweep : Float -- radians, positive = clockwise (right)
         }
     | Turnout
         { throughLength : Float -- length of straight through route

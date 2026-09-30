@@ -118,14 +118,14 @@ dot a b =
 
 
 {-| Cross product (returns scalar z-component of 3D cross product).
-Positive if b is counter-clockwise from a.
+Positive if b is clockwise from a (on screen, with +Y down).
 -}
 cross : Vec2 -> Vec2 -> Float
 cross a b =
     a.x * b.y - a.y * b.x
 
 
-{-| Rotate a vector by an angle (radians, counter-clockwise).
+{-| Rotate a vector by an angle (radians, clockwise on screen with +Y down).
 -}
 rotate : Float -> Vec2 -> Vec2
 rotate angleRad v =

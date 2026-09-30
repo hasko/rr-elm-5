@@ -8,8 +8,8 @@ module Track.Render exposing
 {-| SVG rendering for track elements.
 
 Converts track elements to render segments, then to SVG paths.
-Apply scale(1,-1) transform at SVG group level to flip Y axis
-from math coords to screen coords.
+World coordinates are already screen coordinates (+Y down), so no
+flip transform is needed.
 
 -}
 
