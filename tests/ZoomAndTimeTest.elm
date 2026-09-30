@@ -2,14 +2,16 @@ module ZoomAndTimeTest exposing (..)
 
 {-| Tests for zoom bounds and time multiplier logic.
 
-Since Main.elm uses ports and can't be imported in tests, these tests
-replicate the pure zoom/time logic and verify the bounds and calculations
-match the expected behavior from Main.elm.
+Zoom tests exercise `Camera.update` directly. The time scaling logic lives in
+Main.elm (which uses ports and can't be imported in tests), so it is
+replicated here.
 
 -}
 
+import Camera exposing (CameraMsg(..))
 import Expect
 import Test exposing (..)
+import Util.Vec2 exposing (vec2)
 
 
 suite : Test
@@ -25,22 +27,15 @@ suite =
 -- ZOOM TESTS
 
 
-{-| Replicate the zoom factor calculation from Main.elm Zoom handler.
--}
-zoomFactor : Float -> Float
-zoomFactor deltaY =
-    if deltaY < 0 then
-        1.1
-
-    else
-        1 / 1.1
-
-
-{-| Replicate the zoom clamping from Main.elm Zoom handler.
+{-| Apply one wheel event at the viewport center and return the new zoom.
 -}
 applyZoom : Float -> Float -> Float
 applyZoom currentZoom deltaY =
-    clamp 0.5 10.0 (currentZoom * zoomFactor deltaY)
+    Camera.update { width = 800, height = 600 }
+        (Zoom deltaY 400 300)
+        { camera = { center = vec2 0 0, zoom = currentZoom }, dragState = Nothing }
+        |> .camera
+        |> .zoom
 
 
 zoomBoundsTests : Test
@@ -99,21 +94,21 @@ zoomBoundsTests =
 zoomFactorTests : Test
 zoomFactorTests =
     describe "Zoom factor calculation"
-        [ test "negative deltaY (scroll up) gives zoom-in factor > 1" <|
+        [ test "negative deltaY (scroll up) zooms in by a factor > 1" <|
             \_ ->
-                zoomFactor -100
+                applyZoom 1.0 -100
                     |> Expect.greaterThan 1.0
-        , test "positive deltaY (scroll down) gives zoom-out factor < 1" <|
+        , test "positive deltaY (scroll down) zooms out by a factor < 1" <|
             \_ ->
-                zoomFactor 100
+                applyZoom 1.0 100
                     |> Expect.lessThan 1.0
         , test "zoom-in factor is 1.1" <|
             \_ ->
-                zoomFactor -100
+                applyZoom 1.0 -100
                     |> Expect.within (Expect.Absolute 0.001) 1.1
         , test "zoom-out factor is 1/1.1" <|
             \_ ->
-                zoomFactor 100
+                applyZoom 1.0 100
                     |> Expect.within (Expect.Absolute 0.001) (1 / 1.1)
         , test "zoom in then out returns approximately to original zoom" <|
             \_ ->
