@@ -3,12 +3,11 @@ module StorageTest exposing (..)
 import Dict
 import Expect
 import Json.Decode as Decode
-import Json.Encode as Encode
 import Planning.Types exposing (StockType(..))
-import Util.GameTime as GameTime
 import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotTarget(..), SwitchPosition(..))
-import Storage exposing (SavedState, SavedTrain, decodeSavedState, encodeSavedState)
+import Storage exposing (SavedState, decodeSavedState, encodeSavedState)
 import Test exposing (..)
+import Util.GameTime as GameTime
 
 
 suite : Test

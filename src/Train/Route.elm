@@ -1,13 +1,11 @@
 module Train.Route exposing
     ( TrackContext
-    , buildRoute
     , elementStartDistance
     , makeTrackContext
     , positionOnRoute
     , routeEndStation
     , routeFromStation
     , spotPosition
-    , turnoutElements
     , turnoutStartDistance
     )
 
@@ -494,11 +492,12 @@ findSegmentAndInterpolate distance segments =
             in
             if distance <= segmentEnd then
                 let
-                    localDistance =
-                        distance - segment.startDistance
-
                     t =
                         if segment.length > 0 then
+                            let
+                                localDistance =
+                                    distance - segment.startDistance
+                            in
                             localDistance / segment.length
 
                         else
@@ -649,15 +648,16 @@ findSpotOnRouteHelper ctx location segments =
 isSegmentReversed : TrackContext -> RouteSegment -> Bool
 isSegmentReversed ctx segment =
     let
-        segmentStart =
-            geometryStartPosition segment.geometry
-
         maybeConn0 =
             Layout.getConnector segment.elementId 0 ctx.layout
     in
     case maybeConn0 of
         Just conn0 ->
-            not (Vec2.distance segmentStart conn0.position < 1.0)
+            let
+                segmentStart =
+                    geometryStartPosition segment.geometry
+            in
+            Vec2.distance segmentStart conn0.position >= 1.0
 
         Nothing ->
             False

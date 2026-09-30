@@ -5,9 +5,7 @@ import Expect
 import Test exposing (..)
 import Track.Element
     exposing
-        ( Connector
-        , ElementId(..)
-        , Hand(..)
+        ( Hand(..)
         , TrackElementType(..)
         , computeConnectors
         , connectorCount

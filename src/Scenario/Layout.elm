@@ -14,9 +14,8 @@ placing track elements using the existing Track.Element geometry engine.
 -}
 
 import Dict exposing (Dict)
-import Scenario exposing (NodeType(..), Scenario, Segment(..), TrackEdge, TrackNode, TurnoutProps)
-import Track.Element as Element exposing (Connector, ElementId(..), Hand(..), SwitchState(..), TrackElementType)
-
+import Scenario exposing (NodeType(..), Scenario, Segment(..), TrackEdge, TrackNode)
+import Track.Element as Element exposing (Connector, ElementId, Hand(..), SwitchState(..), TrackElementType)
 import Track.Layout as Layout exposing (Layout)
 import Util.Vec2 as Vec2
 
@@ -117,46 +116,41 @@ buildLayout scenario =
 -}
 walkFromNode : String -> ( ElementId, Int ) -> Scenario -> WalkerState -> WalkerState
 walkFromNode nodeId attachPoint scenario state =
-    let
-        -- Find edges FROM this node
-        outgoingEdges =
-            scenario.track.edges
-                |> List.filter (\e -> e.from == nodeId)
-    in
     case findNode nodeId scenario of
         Nothing ->
             { state | errors = state.errors ++ [ "Node not found: " ++ nodeId ] }
 
         Just node ->
+            let
+                -- Find edges FROM this node
+                outgoingEdges =
+                    scenario.track.edges
+                        |> List.filter (\e -> e.from == nodeId)
+            in
             case node.nodeType of
                 Scenario.Turnout _ ->
                     -- For turnouts, edges are walked from specific connectors
                     -- through edge from connector 1, diverge from connector 2
-                    let
-                        throughEdges =
-                            outgoingEdges |> List.filter (\e -> e.port_ == Just "through")
-
-                        divergeEdges =
-                            outgoingEdges |> List.filter (\e -> e.port_ == Just "diverge")
-                    in
                     case Dict.get nodeId state.nodeElementMap of
                         Just elemId ->
                             -- Walk through edges from connector 1
                             let
+                                throughEdges =
+                                    outgoingEdges |> List.filter (\e -> e.port_ == Just "through")
+
+                                divergeEdges =
+                                    outgoingEdges |> List.filter (\e -> e.port_ == Just "diverge")
+
                                 stateAfterThrough =
                                     List.foldl
                                         (\edge s -> walkEdge edge ( elemId, 1 ) scenario s)
                                         state
                                         throughEdges
-
-                                -- Walk diverge edges from connector 2
-                                stateAfterDiverge =
-                                    List.foldl
-                                        (\edge s -> walkEdge edge ( elemId, 2 ) scenario s)
-                                        stateAfterThrough
-                                        divergeEdges
                             in
-                            stateAfterDiverge
+                            List.foldl
+                                (\edge s -> walkEdge edge ( elemId, 2 ) scenario s)
+                                stateAfterThrough
+                                divergeEdges
 
                         Nothing ->
                             { state | errors = state.errors ++ [ "Turnout element not found for node: " ++ nodeId ] }
@@ -205,12 +199,8 @@ walkEdge edge attachPoint scenario state =
                 (\spot s -> placeSpot spot segmentInfos edge.segments s)
                 stateAfterSegments
                 edge.spots
-
-        -- Now arrive at the destination node
-        stateAtDest =
-            arriveAtNode edge.to currentAttach scenario stateWithSpots
     in
-    stateAtDest
+    arriveAtNode edge.to currentAttach scenario stateWithSpots
 
 
 {-| Arrive at a destination node. If already visited, validate merge point.

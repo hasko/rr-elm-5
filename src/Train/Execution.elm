@@ -197,16 +197,17 @@ executeMoveTo ctx deltaSeconds spotId spotTarget train =
                     else
                         -- Target is behind: we overshot, stop
                         ( 0, train.position )
-
-                -- Apply buffer stop safety brake
-                ( finalSpeed, finalPosition ) =
-                    applyBufferStopBrake train desiredSpeed newPosition deltaSeconds
             in
             if abs distanceToTarget < arrivalThreshold || (desiredSpeed == 0 && abs distanceToTarget < arrivalThreshold * 2) then
                 -- Arrived: advance to next order
                 ( advanceProgram { train | position = targetDistance, speed = 0 }, [] )
 
             else
+                let
+                    -- Apply buffer stop safety brake
+                    ( finalSpeed, finalPosition ) =
+                        applyBufferStopBrake train desiredSpeed newPosition deltaSeconds
+                in
                 ( { train | position = finalPosition, speed = finalSpeed }, [] )
 
 
@@ -362,5 +363,3 @@ applyBufferStopBrake train speed position deltaSeconds =
 
     else
         ( speed, position )
-
-

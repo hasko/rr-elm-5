@@ -2,12 +2,10 @@ module ScenarioFixtures exposing
     ( ctx
     , eastRouteNormal
     , eastRouteReverse
-    , layoutResult
     , normalStates
     , reverseStates
     , sawmillScenario
     , twoTurnoutCtx
-    , twoTurnoutLayoutResult
     , twoTurnoutScenario
     , westRouteNormal
     )

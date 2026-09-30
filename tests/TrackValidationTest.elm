@@ -1,18 +1,17 @@
 module TrackValidationTest exposing (..)
 
 import Expect
+import Sawmill.Layout
 import Test exposing (..)
-import Track.Element as Element exposing (ElementId(..), TrackElementType(..))
+import Track.Element exposing (ElementId(..), TrackElementType(..))
 import Track.Layout as Layout exposing (Layout)
 import Track.Validation
     exposing
         ( ValidationError(..)
         , orientationTolerance
         , positionTolerance
-        , validateConnection
         , validateLayout
         )
-import Sawmill.Layout
 import Util.Vec2 exposing (vec2)
 
 
@@ -128,8 +127,8 @@ invalidConnectionTests =
                             |> List.any
                                 (\err ->
                                     case err of
-                                        PositionMismatch _ ->
-                                            True
+                                        PositionMismatch { distance } ->
+                                            distance > 0.01
 
                                         _ ->
                                             False
@@ -167,8 +166,8 @@ invalidConnectionTests =
                             |> List.any
                                 (\err ->
                                     case err of
-                                        OrientationMismatch _ ->
-                                            True
+                                        OrientationMismatch { angleDiff } ->
+                                            angleDiff > 0.01
 
                                         _ ->
                                             False
@@ -199,8 +198,8 @@ invalidConnectionTests =
                             |> List.any
                                 (\err ->
                                     case err of
-                                        DanglingConnection _ ->
-                                            True
+                                        DanglingConnection { missing } ->
+                                            missing == ( ElementId 99, 0 )
 
                                         _ ->
                                             False

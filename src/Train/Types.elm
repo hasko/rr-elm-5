@@ -11,7 +11,7 @@ module Train.Types exposing
 -}
 
 import Planning.Types exposing (StockItem)
-import Programmer.Types exposing (Order, ReverserPosition(..), SwitchPosition)
+import Programmer.Types exposing (Order, ReverserPosition, SwitchPosition)
 import Track.Element exposing (ElementId)
 import Util.Vec2 exposing (Vec2)
 

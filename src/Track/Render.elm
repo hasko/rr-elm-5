@@ -1,10 +1,8 @@
 module Track.Render exposing
-    ( RenderSegment(..)
-    , elementToRenderSegments
+    ( RenderSegment
     , layoutToRenderSegments
     , renderBallast
     , renderRails
-    , renderSegmentToPath
     )
 
 {-| SVG rendering for track elements.
@@ -92,11 +90,13 @@ elementToRenderSegments element =
                         actualSweep =
                             case spec.hand of
                                 Element.LeftHand ->
-                                    -spec.sweep -- left = CCW = negative
+                                    -spec.sweep
 
+                                -- left = CCW = negative
                                 Element.RightHand ->
-                                    spec.sweep -- right = CW = positive
+                                    spec.sweep
 
+                        -- right = CW = positive
                         divergingSegment =
                             curvedSegmentToRender c0 c2 actualSweep
                     in
@@ -125,6 +125,7 @@ curvedSegmentToRender start end sweep =
 
             else
                 0
+
         -- CCW (negative sweep = counter-clockwise)
         }
 
@@ -136,22 +137,23 @@ For better accuracy, we could store the radius in the element.
 computeRadiusFromConnectors : Connector -> Connector -> Float -> Float
 computeRadiusFromConnectors start end sweep =
     let
-        -- Distance between start and end
-        dx =
-            end.position.x - start.position.x
-
-        dy =
-            end.position.y - start.position.y
-
-        chordLength =
-            sqrt (dx * dx + dy * dy)
-
         -- For a circular arc: chord = 2 * radius * sin(sweep/2)
         -- So radius = chord / (2 * sin(sweep/2))
         halfSweep =
             abs sweep / 2
     in
     if halfSweep > 0.001 then
+        let
+            -- Distance between start and end
+            dx =
+                end.position.x - start.position.x
+
+            dy =
+                end.position.y - start.position.y
+
+            chordLength =
+                sqrt (dx * dx + dy * dy)
+        in
         chordLength / (2 * sin halfSweep)
 
     else
@@ -314,7 +316,6 @@ renderArcRails arc =
 
         -- Calculate the center of the arc to determine proper offsets
         -- We need to find perpendicular offsets at start and end points
-
         -- Direction from start to end
         chordVector =
             Vec2.subtract arc.end arc.start
@@ -343,6 +344,7 @@ renderArcRails arc =
         centerOffset =
             if arc.sweepFlag == 1 then
                 Vec2.scale heightToCenter perpToChord
+
             else
                 Vec2.scale -heightToCenter perpToChord
 
@@ -353,20 +355,13 @@ renderArcRails arc =
         radiusAtStart =
             Vec2.subtract arc.start center
 
-        tangentAtStart =
-            Vec2.normalize (Vec2.perpendicular radiusAtStart)
-
         -- Tangent at end (perpendicular to radius at end)
         radiusAtEnd =
             Vec2.subtract arc.end center
 
-        tangentAtEnd =
-            Vec2.normalize (Vec2.perpendicular radiusAtEnd)
-
         -- For CW arcs (sweepFlag = 1), tangent points in positive perpendicular direction
         -- For CCW arcs (sweepFlag = 0), tangent points in negative perpendicular direction
         -- We want rails offset perpendicular to tangent (i.e., radially)
-
         -- Radial offset direction at start (toward/away from center)
         radialDirStart =
             Vec2.normalize radiusAtStart

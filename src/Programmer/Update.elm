@@ -12,7 +12,7 @@ module Programmer.Update exposing
 {-| Update logic for the train programmer: order manipulation and program save.
 -}
 
-import Planning.Types exposing (..)
+import Planning.Types exposing (PanelMode(..), PlanningState, emptyConsistBuilder)
 import Programmer.Types as Programmer
 import Util.GameTime as GameTime
 import Util.List

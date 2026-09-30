@@ -11,7 +11,7 @@ module Planning.Update exposing
 -}
 
 import Planning.Helpers exposing (returnStockToInventory, takeStockFromInventory)
-import Planning.Types exposing (..)
+import Planning.Types exposing (PlanningState, StockType(..), emptyConsistBuilder)
 import Programmer.Types as Programmer
 import Util.GameTime as GameTime
 
@@ -59,7 +59,7 @@ addToConsist toFront planning =
                         builder.items ++ [ stockToAdd ]
 
                 newBuilder =
-                    { builder | items = newItems, selectedStock = builder.selectedStock }
+                    { builder | items = newItems }
             in
             { planning
                 | consistBuilder = newBuilder
@@ -109,7 +109,7 @@ insertInConsist index planning =
                         ++ List.drop index builder.items
 
                 newBuilder =
-                    { builder | items = newItems, selectedStock = builder.selectedStock }
+                    { builder | items = newItems }
             in
             { planning
                 | consistBuilder = newBuilder

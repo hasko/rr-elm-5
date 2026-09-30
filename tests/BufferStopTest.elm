@@ -6,8 +6,7 @@ import Sawmill.Layout exposing (trackLayout)
 import Test exposing (..)
 import Track.Element as Element
     exposing
-        ( Connector
-        , ElementId(..)
+        ( ElementId(..)
         , TrackElementType(..)
         , computeConnectors
         )

@@ -1,10 +1,10 @@
 module PlanningTypesTest exposing (..)
 
 import Expect
-import Planning.Types as Planning exposing (..)
-import Scenario exposing (Station, StockEntry)
-import Util.GameTime as GameTime
+import Planning.Types exposing (..)
+import Scenario exposing (Station)
 import Test exposing (..)
+import Util.GameTime as GameTime
 
 
 {-| Test stations matching the sawmill scenario.

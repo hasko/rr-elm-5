@@ -3,11 +3,10 @@ module TrackLayoutTest exposing (..)
 import Array
 import Expect
 import Test exposing (..)
-import Track.Element as Element exposing (ElementId(..), TrackElementType(..))
+import Track.Element exposing (ElementId(..), TrackElementType(..))
 import Track.Layout
     exposing
-        ( Layout
-        , connect
+        ( connect
         , emptyLayout
         , findElement
         , getConnector

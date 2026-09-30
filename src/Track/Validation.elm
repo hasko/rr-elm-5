@@ -3,15 +3,15 @@ module Track.Validation exposing
     , ValidationResult
     , orientationTolerance
     , positionTolerance
-    , validateConnection
     , validateLayout
     )
 
 {-| Track layout continuity validation.
 
 Validates that connected connectors match within tolerance:
-- Position: 1 cm
-- Orientation: 1 degree (connected ends face opposite directions)
+
+  - Position: 1 cm
+  - Orientation: 1 degree (connected ends face opposite directions)
 
 -}
 
@@ -97,8 +97,10 @@ validateConnection layout connection =
 
 {-| Validate that two connectors match within tolerance.
 Connected connectors should:
-1. Have the same position (within tolerance)
-2. Face opposite directions (orientations differ by pi radians, within tolerance)
+
+1.  Have the same position (within tolerance)
+2.  Face opposite directions (orientations differ by pi radians, within tolerance)
+
 -}
 validateConnectorPair : Connection -> Connector -> Connector -> Maybe ValidationError
 validateConnectorPair connection fromConnector toConnector =
@@ -109,25 +111,27 @@ validateConnectorPair connection fromConnector toConnector =
 
         positionOk =
             distance <= positionTolerance
-
-        -- Check orientation
-        -- Connected ends should face opposite directions
-        -- (orientation points outward, so they should differ by ~pi)
-        orientationDiff =
-            abs (Element.normalizeAngle (fromConnector.orientation - toConnector.orientation))
-
-        -- The difference should be close to pi (180 degrees)
-        angleDiffFromPi =
-            abs (orientationDiff - pi)
-
-        orientationOk =
-            angleDiffFromPi <= orientationTolerance
     in
     if not positionOk then
         Just (PositionMismatch { connection = connection, distance = distance })
 
-    else if not orientationOk then
-        Just (OrientationMismatch { connection = connection, angleDiff = angleDiffFromPi })
-
     else
-        Nothing
+        let
+            -- Check orientation
+            -- Connected ends should face opposite directions
+            -- (orientation points outward, so they should differ by ~pi)
+            orientationDiff =
+                abs (Element.normalizeAngle (fromConnector.orientation - toConnector.orientation))
+
+            -- The difference should be close to pi (180 degrees)
+            angleDiffFromPi =
+                abs (orientationDiff - pi)
+
+            orientationOk =
+                angleDiffFromPi <= orientationTolerance
+        in
+        if not orientationOk then
+            Just (OrientationMismatch { connection = connection, angleDiff = angleDiffFromPi })
+
+        else
+            Nothing

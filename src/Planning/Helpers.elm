@@ -1,7 +1,7 @@
 module Planning.Helpers exposing
-    ( takeStockFromInventory
-    , returnStockToInventory
+    ( returnStockToInventory
     , takeFirst
+    , takeStockFromInventory
     )
 
 {-| Helper functions for managing planning state and inventory.
@@ -10,7 +10,7 @@ These functions are extracted from Main.elm to make them testable.
 
 -}
 
-import Planning.Types exposing (..)
+import Planning.Types exposing (SpawnPointInventory, StockItem, StockType)
 
 
 {-| Take one stock item of a given type from a spawn point's inventory.

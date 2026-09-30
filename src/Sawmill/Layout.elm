@@ -1,9 +1,9 @@
 module Sawmill.Layout exposing
-    ( Element(..)
+    ( Bounds
+    , Element(..)
     , ElementId(..)
     , InteractiveElement
     , SpotType(..)
-    , elements
     , furniture
     , interactiveElements
     , trackLayout
@@ -12,7 +12,7 @@ module Sawmill.Layout exposing
 {-| Layout for the Sawmill puzzle using the composable track element system.
 
 Layout:
-    EAST                                                    WEST
+EAST WEST
 
     Tunnel ════════════════╗═══════════════════════════════════
     Portal                  ║╲                             Mainline
@@ -27,8 +27,7 @@ Layout:
 
 -}
 
-import Array
-import Track.Element as TrackElement exposing (Connector, Hand(..), SwitchState(..))
+import Track.Element as TrackElement exposing (Hand(..), SwitchState(..))
 import Track.Layout as TrackLayout exposing (Layout)
 import Util.Vec2 exposing (Vec2, vec2)
 
@@ -48,7 +47,7 @@ type ElementId
 
 type Element
     = TunnelPortal Vec2 String -- position, name
-    | Turnout Vec2 Float SwitchState -- position, orientation (radians), state
+    | Turnout -- rendered with the track; position lives in `bounds`
     | Spot Vec2 String SpotType -- position, name, type
     | BufferStop Vec2 Float -- position, orientation
 
@@ -91,12 +90,20 @@ turnoutRadius =
 
 turnoutSweep : Float
 turnoutSweep =
-    15 * pi / 180 -- 15 degrees
+    15 * pi / 180
+
+
+
+-- 15 degrees
 
 
 continuationSweep : Float
 continuationSweep =
-    30 * pi / 180 -- 30 degrees
+    30 * pi / 180
+
+
+
+-- 30 degrees
 
 
 {-| Total curve angle (turnout + continuation) = 45 degrees
@@ -250,8 +257,7 @@ interactiveElements { turnoutState, anchorPortalName, farPortalName } =
 
         bufferPos =
             pointAlongSiding 150
-    in
-    let
+
         -- Get West Station position from track layout (element 7, connector 0)
         westPos =
             case TrackLayout.getConnector (TrackElement.ElementId 7) 0 trackLayout of
@@ -272,7 +278,7 @@ interactiveElements { turnoutState, anchorPortalName, farPortalName } =
       , tooltip = farPortalName ++ " (spawn point)"
       }
     , { id = TurnoutId
-      , element = Turnout turnoutPos 0 turnoutState
+      , element = Turnout
       , bounds = { x = turnoutPos.x - 15, y = turnoutPos.y - 15, width = 60, height = 30 }
       , tooltip =
             case turnoutState of
@@ -298,18 +304,6 @@ interactiveElements { turnoutState, anchorPortalName, farPortalName } =
       , tooltip = "Buffer Stop"
       }
     ]
-
-
-{-| Get all elements for rendering.
--}
-elements :
-    { turnoutState : SwitchState
-    , anchorPortalName : String
-    , farPortalName : String
-    }
-    -> List Element
-elements config =
-    List.map .element (interactiveElements config)
 
 
 {-| Map furniture - decorative elements.

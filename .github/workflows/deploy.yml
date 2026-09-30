@@ -31,6 +31,9 @@ jobs:
       - name: Run Elm unit tests
         run: npx elm-test
 
+      - name: Run elm-review
+        run: npx elm-review
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 

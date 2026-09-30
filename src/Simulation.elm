@@ -24,7 +24,7 @@ import Train.Execution as Execution
 import Train.Movement as Movement
 import Train.Route as Route exposing (TrackContext)
 import Train.Spawn as Spawn
-import Train.Types exposing (ActiveTrain, Effect(..), TrainState(..))
+import Train.Types exposing (ActiveTrain, Effect(..))
 import Util.GameTime exposing (GameTime)
 
 

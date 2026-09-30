@@ -3,11 +3,11 @@ module Programmer.View exposing (SpotInfo, SwitchInfo, viewProgrammerPanel)
 {-| View functions for the train programmer panel UI.
 -}
 
-import Html exposing (Html, button, div, input, label, option, select, span, text)
-import Html.Attributes exposing (attribute, disabled, selected, style, type_, value)
-import Html.Events exposing (onClick, onInput)
+import Html exposing (Html, button, div, label, span, text)
+import Html.Attributes exposing (attribute, disabled, style)
+import Html.Events exposing (onClick)
 import Json.Decode
-import Programmer.Types as Programmer
+import Programmer.Types
     exposing
         ( Order(..)
         , ProgrammerState
@@ -104,9 +104,6 @@ viewProgramList config =
     let
         program =
             config.state.program
-
-        programLength =
-            List.length program
     in
     div
         [ style "padding" "12px 16px"
@@ -127,6 +124,10 @@ viewProgramList config =
                 [ text "No orders yet. Add orders below." ]
 
           else
+            let
+                programLength =
+                    List.length program
+            in
             div []
                 (List.indexedMap
                     (viewOrderItem config.spotNameFn config.state.selectedOrderIndex programLength config.onRemoveOrder config.onMoveOrderUp config.onMoveOrderDown config.onSelectOrder)
@@ -394,7 +395,7 @@ viewSwitchSelector switches onAddOrder =
                         , style "font-size" "12px"
                         , onClick (onAddOrder (SetSwitch sw.id Normal))
                         ]
-                        [ text (sw.label ++ "\u{2192}N") ]
+                        [ text (sw.label ++ "→N") ]
                     , button
                         [ attribute "data-testid" ("add-switch-" ++ sw.id ++ "-diverging")
                         , style "background" "#5a5a3a"
@@ -406,7 +407,7 @@ viewSwitchSelector switches onAddOrder =
                         , style "font-size" "12px"
                         , onClick (onAddOrder (SetSwitch sw.id Diverging))
                         ]
-                        [ text (sw.label ++ "\u{2192}D") ]
+                        [ text (sw.label ++ "→D") ]
                     ]
                 )
                 switches
@@ -531,5 +532,3 @@ viewSaveButton onSave =
             ]
             [ text "Save Program" ]
         ]
-
-

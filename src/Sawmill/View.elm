@@ -8,7 +8,7 @@ import Json.Decode as Decode
 import Sawmill.Layout as Layout
     exposing
         ( Element(..)
-        , ElementId(..)
+        , ElementId
         , InteractiveElement
         )
 import Svg exposing (Svg)
@@ -207,8 +207,8 @@ viewTrack turnoutState =
             TrackRender.layoutToRenderSegments Layout.trackLayout
     in
     Svg.g []
-        (-- Render all ballast first
-         List.map TrackRender.renderBallast segments
+        -- Render all ballast first
+        (List.map TrackRender.renderBallast segments
             ++ -- Then render all rails
                List.map TrackRender.renderRails segments
             ++ -- Turnout switch point indicator
@@ -232,10 +232,13 @@ viewTurnoutIndicator state =
         ( activeColor, indicatorAngle ) =
             case state of
                 Normal ->
-                    ( "#4a4", 0 )  -- Green, pointing along mainline
+                    ( "#4a4", 0 )
 
+                -- Green, pointing along mainline
                 Reverse ->
-                    ( "#44a", 15 )  -- Blue, pointing toward siding
+                    ( "#44a", 15 )
+
+        -- Blue, pointing toward siding
     in
     Svg.g
         [ SvgA.transform
@@ -360,7 +363,7 @@ viewElement element =
         TunnelPortal pos name ->
             viewTunnelPortal pos name
 
-        Turnout pos orientation state ->
+        Turnout ->
             -- Already rendered in track section
             Svg.g [] []
 
@@ -566,10 +569,3 @@ viewTooltip pos text =
 
 
 -- HELPERS
-
-
-pointsToPath : List Vec2 -> String
-pointsToPath points =
-    points
-        |> List.map (\p -> String.fromFloat p.x ++ " " ++ String.fromFloat p.y)
-        |> String.join " L "

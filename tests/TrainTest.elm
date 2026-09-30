@@ -1,22 +1,21 @@
 module TrainTest exposing (..)
 
 import Expect
-import Planning.Types exposing (ScheduledTrain, StockItem, StockType(..))
-import Util.GameTime as GameTime
 import Planning.Helpers exposing (returnStockToInventory)
-import Programmer.Types exposing (Order(..), SpotTarget(..))
-import Train.Execution as Execution
+import Planning.Types exposing (StockItem, StockType(..))
+import Programmer.Types exposing (SpotTarget(..))
 import ScenarioFixtures exposing (ctx, eastRouteNormal, eastRouteReverse, normalStates, westRouteNormal)
 import Set
 import Test exposing (..)
 import Track.Element exposing (ElementId(..))
-import Track.Layout as Layout
+import Train.Execution as Execution
 import Train.Movement exposing (shouldDespawn, updateTrain)
 import Train.Route as Route
 import Train.Spawn exposing (checkSpawns)
 import Train.Stock exposing (consistLength, couplerGap, stockLength, trainSpeed)
-import Train.Types exposing (Effect(..), Route, RouteSegment, SegmentGeometry(..), TrainState(..))
-import Util.Vec2 as Vec2 exposing (vec2)
+import Train.Types exposing (Effect(..), Route, SegmentGeometry(..), TrainState(..))
+import Util.GameTime as GameTime
+import Util.Vec2 exposing (vec2)
 
 
 suite : Test
@@ -347,7 +346,7 @@ routeTests =
                             Route.positionOnRoute 0.0 route
                     in
                     case result of
-                        Just pos ->
+                        Just _ ->
                             Expect.pass
 
                         Nothing ->
@@ -362,7 +361,7 @@ routeTests =
                             Route.positionOnRoute (route.totalLength / 2) route
                     in
                     case result of
-                        Just pos ->
+                        Just _ ->
                             Expect.pass
 
                         Nothing ->
@@ -377,7 +376,7 @@ routeTests =
                             Route.positionOnRoute route.totalLength route
                     in
                     case result of
-                        Just pos ->
+                        Just _ ->
                             Expect.pass
 
                         Nothing ->
@@ -408,22 +407,22 @@ routeTests =
         , describe "eastToWestRoute Normal"
             [ test "has positive total length" <|
                 \_ ->
-                    (eastRouteNormal).totalLength
+                    eastRouteNormal.totalLength
                         |> Expect.greaterThan 0.0
             , test "has non-empty segments" <|
                 \_ ->
-                    List.length (eastRouteNormal).segments
+                    List.length eastRouteNormal.segments
                         |> Expect.greaterThan 0
             ]
         , describe "westToEastRoute Normal"
             [ test "has same total length as eastToWestRoute Normal" <|
                 \_ ->
-                    (westRouteNormal).totalLength
-                        |> Expect.within (Expect.Absolute 0.01) (eastRouteNormal).totalLength
+                    westRouteNormal.totalLength
+                        |> Expect.within (Expect.Absolute 0.01) eastRouteNormal.totalLength
             , test "has same number of segments" <|
                 \_ ->
-                    List.length (westRouteNormal).segments
-                        |> Expect.equal (List.length (eastRouteNormal).segments)
+                    List.length westRouteNormal.segments
+                        |> Expect.equal (List.length eastRouteNormal.segments)
             ]
         ]
 
@@ -445,7 +444,7 @@ dynamicRoutingTests =
                         |> Expect.equal [ ElementId 1, ElementId 2, ElementId 3 ]
             , test "eastToWest Normal total length is 500m (250 + 50 + 200)" <|
                 \_ ->
-                    (eastRouteNormal).totalLength
+                    eastRouteNormal.totalLength
                         |> Expect.within (Expect.Absolute 0.01) 500.0
             ]
         , describe "Reverse switch state (siding route)"
@@ -464,7 +463,7 @@ dynamicRoutingTests =
                         |> Expect.equal [ ElementId 1, ElementId 2, ElementId 5, ElementId 6 ]
             , test "eastToWest Reverse route has positive total length" <|
                 \_ ->
-                    (eastRouteReverse).totalLength
+                    eastRouteReverse.totalLength
                         |> Expect.greaterThan 0.0
             , test "eastToWest Reverse route includes element 6 (siding)" <|
                 \_ ->
@@ -524,39 +523,39 @@ spotPositionTests =
         [ describe "tunnel spots on eastToWest route"
             [ test "e-portal is at distance 0" <|
                 \_ ->
-                    Route.spotPosition ctx "e-portal" (eastRouteNormal)
+                    Route.spotPosition ctx "e-portal" eastRouteNormal
                         |> Expect.equal (Just 0.0)
             , test "w-portal is at totalLength" <|
                 \_ ->
-                    Route.spotPosition ctx "w-portal" (eastRouteNormal)
-                        |> Expect.equal (Just (eastRouteNormal).totalLength)
+                    Route.spotPosition ctx "w-portal" eastRouteNormal
+                        |> Expect.equal (Just eastRouteNormal.totalLength)
             ]
         , describe "tunnel spots on westToEast route"
             [ test "w-portal is at distance 0" <|
                 \_ ->
-                    Route.spotPosition ctx "w-portal" (westRouteNormal)
+                    Route.spotPosition ctx "w-portal" westRouteNormal
                         |> Expect.equal (Just 0.0)
             , test "e-portal is at totalLength" <|
                 \_ ->
-                    Route.spotPosition ctx "e-portal" (westRouteNormal)
-                        |> Expect.equal (Just (westRouteNormal).totalLength)
+                    Route.spotPosition ctx "e-portal" westRouteNormal
+                        |> Expect.equal (Just westRouteNormal.totalLength)
             ]
         , describe "siding spots on mainline routes"
             [ test "platform is not reachable on mainline eastToWest route" <|
                 \_ ->
-                    Route.spotPosition ctx "platform" (eastRouteNormal)
+                    Route.spotPosition ctx "platform" eastRouteNormal
                         |> Expect.equal Nothing
             , test "team-track is not reachable on mainline eastToWest route" <|
                 \_ ->
-                    Route.spotPosition ctx "team-track" (eastRouteNormal)
+                    Route.spotPosition ctx "team-track" eastRouteNormal
                         |> Expect.equal Nothing
             , test "platform is not reachable on mainline westToEast route" <|
                 \_ ->
-                    Route.spotPosition ctx "platform" (westRouteNormal)
+                    Route.spotPosition ctx "platform" westRouteNormal
                         |> Expect.equal Nothing
             , test "team-track is not reachable on mainline westToEast route" <|
                 \_ ->
-                    Route.spotPosition ctx "team-track" (westRouteNormal)
+                    Route.spotPosition ctx "team-track" westRouteNormal
                         |> Expect.equal Nothing
             ]
         , describe "siding spots on siding route"
@@ -1563,25 +1562,9 @@ turnoutRebuildTests =
                         eastRouteNormal
 
                     -- Position train before the turnout
-                    turnoutDist =
-                        Route.turnoutStartDistance ctx normalRoute
-                            |> Maybe.withDefault 999
-
-                    train =
-                        testTrain
-                            { id = 1
-                            , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                            , position = turnoutDist - 10
-                            , speed = 5.0
-                            , route = normalRoute
-                            }
-
                     reverseRoute =
                         eastRouteReverse
-                in
-                -- Route should differ from Normal after rebuild with Reverse
-                -- (the segments after turnout differ)
-                let
+
                     normalSegmentIds =
                         List.map .elementId normalRoute.segments
 
@@ -1627,9 +1610,6 @@ turnoutRebuildTests =
 
                     -- Now try to rebuild with Normal (mainline) state
                     -- The route should NOT change because train is past turnout
-                    originalSegmentIds =
-                        List.map .elementId train.route.segments
-
                     -- Simulate what rebuildIfBeforeTurnout would do:
                     -- train.position >= turnoutDist, so route should stay
                     trainPositionPastTurnout =

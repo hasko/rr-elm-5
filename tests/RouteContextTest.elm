@@ -12,7 +12,6 @@ import ScenarioFixtures
         , eastRouteNormal
         , eastRouteReverse
         , normalStates
-        , reverseStates
         , twoTurnoutCtx
         , westRouteNormal
         )

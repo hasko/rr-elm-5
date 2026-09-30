@@ -9,7 +9,7 @@ import Dict
 import Expect
 import Planning.Types exposing (StockItem, StockType(..))
 import Programmer.Types
-import ScenarioFixtures exposing (ctx, eastRouteNormal, eastRouteReverse, normalStates, reverseStates)
+import ScenarioFixtures exposing (ctx, eastRouteNormal, normalStates, reverseStates)
 import Set
 import Simulation
 import Test exposing (..)

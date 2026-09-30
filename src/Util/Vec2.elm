@@ -1,23 +1,23 @@
 module Util.Vec2 exposing
     ( Vec2
-    , vec2
     , add
-    , subtract
-    , scale
-    , negate
-    , length
-    , lengthSquared
-    , normalize
-    , dot
-    , cross
-    , rotate
     , angle
     , angleBetween
-    , lerp
+    , cross
     , distance
     , distanceSquared
+    , dot
     , fromAngle
+    , length
+    , lengthSquared
+    , lerp
+    , negate
+    , normalize
     , perpendicular
+    , rotate
+    , scale
+    , subtract
+    , vec2
     )
 
 {-| 2D Vector operations for track geometry and positioning.
@@ -154,9 +154,6 @@ angle v =
 angleBetween : Vec2 -> Vec2 -> Float
 angleBetween a b =
     let
-        dotProduct =
-            dot a b
-
         lenA =
             length a
 
@@ -170,6 +167,10 @@ angleBetween a b =
         0
 
     else
+        let
+            dotProduct =
+                dot a b
+        in
         acos (clamp -1 1 (dotProduct / denom))
 
 

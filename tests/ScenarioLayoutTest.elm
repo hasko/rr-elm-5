@@ -4,11 +4,10 @@ import Dict
 import Expect
 import Json.Decode as Decode
 import Scenario exposing (Scenario)
-import Scenario.Layout exposing (LayoutResult, buildLayout)
+import Scenario.Layout exposing (buildLayout)
 import ScenarioFixtures
 import Test exposing (..)
 import Track.Element exposing (ElementId(..), SwitchState(..), TrackElementType(..))
-import Track.Layout as Layout
 
 
 sawmillScenario : Result String Scenario

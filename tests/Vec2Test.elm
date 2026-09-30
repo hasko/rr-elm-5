@@ -4,8 +4,7 @@ import Expect
 import Test exposing (..)
 import Util.Vec2
     exposing
-        ( Vec2
-        , add
+        ( add
         , angle
         , angleBetween
         , cross

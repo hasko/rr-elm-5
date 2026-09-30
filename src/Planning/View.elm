@@ -10,17 +10,15 @@ import Json.Decode as Decode
 import Planning.Types as Planning
     exposing
         ( ConsistBuilder
-        , PanelMode(..)
         , PlanningState
         , ScheduledTrain
-        , SpawnPointInventory
         , StockItem
         , StockType(..)
         )
 import Scenario exposing (Station)
-import Util.GameTime as GameTime
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
+import Util.GameTime as GameTime
 
 
 {-| Render the entire planning panel.
@@ -548,7 +546,7 @@ viewConsistBuilder stations builder selectedSpawnPoint panOffset dragState onAdd
                     stationIndexOf selectedSpawnPoint stations
               in
               if stationIndex == 0 then
-                viewDepartureArrow "\u{2192}"
+                viewDepartureArrow "→"
 
               else
                 text ""
@@ -593,8 +591,8 @@ viewConsistBuilder stations builder selectedSpawnPoint panOffset dragState onAdd
                         [ viewAddButton hasSelection onAddBack ]
 
                      else
-                        [ viewAddButton hasSelection onAddFront ]
-                            ++ List.concatMap
+                        viewAddButton hasSelection onAddFront
+                            :: List.concatMap
                                 (\index ->
                                     case getItemAt index items of
                                         Just item ->
@@ -613,7 +611,7 @@ viewConsistBuilder stations builder selectedSpawnPoint panOffset dragState onAdd
                     stationIndexOf selectedSpawnPoint stations
               in
               if stationIndex /= 0 then
-                viewDepartureArrow "\u{2190}"
+                viewDepartureArrow "←"
 
               else
                 text ""
@@ -739,7 +737,7 @@ viewConsistItem onRemove onFlipLoco index item =
                     , style "padding" "0"
                     , onClick (onFlipLoco index)
                     ]
-                    [ text "\u{21C4}" ]
+                    [ text "⇄" ]
 
             else
                 text ""

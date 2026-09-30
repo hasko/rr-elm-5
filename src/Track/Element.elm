@@ -16,13 +16,14 @@ module Track.Element exposing
 {-| Track element types and geometry computation.
 
 Coordinates use math convention:
-- 0° = East, angles increase counter-clockwise
-- Y increases northward (flipped for SVG rendering)
+
+  - 0° = East, angles increase counter-clockwise
+  - Y increases northward (flipped for SVG rendering)
 
 -}
 
 import Array exposing (Array)
-import Util.Vec2 as Vec2 exposing (Vec2, vec2)
+import Util.Vec2 as Vec2 exposing (Vec2)
 
 
 {-| A connector represents a track end point with position and orientation.
@@ -143,6 +144,7 @@ Connector 1: exit (position + length along travel direction)
 Note: connector orientation points OUTWARD (direction a train exits from that connector).
 The track extends in the TRAVEL direction (opposite of connector 0's orientation).
 Connector 1's orientation = travel direction (a train exiting continues forward).
+
 -}
 computeStraightConnectors : Connector -> Float -> Array Connector
 computeStraightConnectors connector0 length =
@@ -183,6 +185,7 @@ computeCurvedConnectors connector0 radius sweep =
 Note: entry.orientation points OUTWARD (direction a train exits from entry connector).
 The curve arcs in the TRAVEL direction (opposite of entry.orientation).
 Exit orientation = entry travel direction + sweep (rotated by the curve).
+
 -}
 computeCurveExit : Connector -> Float -> Float -> Connector
 computeCurveExit entry radius sweep =
@@ -232,6 +235,7 @@ Connector 1: normal heel (straight through route exit)
 Connector 2: reverse heel (diverging route exit)
 
 Note: connector0.orientation points OUTWARD. Track extends in travel direction (opposite).
+
 -}
 computeTurnoutConnectors :
     Connector
@@ -260,11 +264,13 @@ computeTurnoutConnectors connector0 spec =
         actualSweep =
             case spec.hand of
                 LeftHand ->
-                    -spec.sweep -- left = CCW = negative
+                    -spec.sweep
 
+                -- left = CCW = negative
                 RightHand ->
-                    spec.sweep -- right = CW = positive
+                    spec.sweep
 
+        -- right = CW = positive
         connector2 =
             computeCurveExit connector0 spec.radius actualSweep
     in
@@ -306,7 +312,8 @@ routes elementType =
             [ ( 0, 1 ) ]
 
         Turnout _ ->
-            [ ( 0, 1 ), ( 0, 2 ) ] -- through and diverging
+            [ ( 0, 1 ), ( 0, 2 ) ]
 
+        -- through and diverging
         TrackEnd ->
             []

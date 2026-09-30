@@ -13,7 +13,6 @@ will fail until the implementation lands.
 
 import Expect
 import Planning.Types exposing (StockItem, StockType(..))
-import Programmer.Types exposing (Order(..))
 import ScenarioFixtures exposing (ctx, eastRouteReverse)
 import Test exposing (..)
 import Train.Route as Route
@@ -38,18 +37,6 @@ sum of lengths of cars 0..N-1 + N coupler gaps + half of car N's length.
 expectedCarOffset : List StockItem -> Int -> Float
 expectedCarOffset consist carIndex =
     let
-        precedingCars =
-            List.take carIndex consist
-
-        precedingLength =
-            List.sum (List.map (\item -> stockLength item.stockType) precedingCars)
-
-        gapCount =
-            toFloat carIndex
-
-        gaps =
-            gapCount * couplerGap
-
         targetCar =
             consist
                 |> List.drop carIndex
@@ -57,6 +44,19 @@ expectedCarOffset consist carIndex =
     in
     case targetCar of
         Just car ->
+            let
+                precedingCars =
+                    List.take carIndex consist
+
+                precedingLength =
+                    List.sum (List.map (\item -> stockLength item.stockType) precedingCars)
+
+                gapCount =
+                    toFloat carIndex
+
+                gaps =
+                    gapCount * couplerGap
+            in
             precedingLength + gaps + stockLength car.stockType / 2
 
         Nothing ->

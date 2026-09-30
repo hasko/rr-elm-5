@@ -19,16 +19,16 @@ import Json.Encode as Encode
 import Planning.Helpers exposing (returnStockToInventory)
 import Planning.Types as Planning exposing (PanelMode(..), StockItem, StockType(..))
 import Planning.Update
+import Planning.View as PlanningView
 import Programmer.Types as Programmer
 import Programmer.Update
-import Planning.View as PlanningView
 import Programmer.View as ProgrammerView
 import Sawmill.Layout as Layout exposing (ElementId(..))
+import Sawmill.View as SawmillView
 import Scenario exposing (NodeType(..), Scenario)
 import Scenario.Layout
-import Simulation
-import Sawmill.View as SawmillView
 import Set exposing (Set)
+import Simulation
 import Storage
 import Svg exposing (Svg, svg)
 import Svg.Attributes as SvgA
@@ -39,7 +39,7 @@ import Train.Route as Route
 import Train.Types exposing (ActiveTrain, TrainState(..))
 import Train.View as TrainView
 import Util.GameTime as GameTime exposing (GameTime)
-import Util.Vec2 as Vec2 exposing (Vec2)
+import Util.Vec2 as Vec2
 
 
 {-| Port to save state to localStorage.
@@ -145,6 +145,7 @@ defaultModel scenario layoutResult =
     }
 
 
+
 -- UPDATE
 
 
@@ -152,7 +153,6 @@ type Msg
     = ScenarioLoaded (Result Http.Error Scenario)
     | Tick Float -- Delta time in milliseconds
     | TogglePlayPause
-    | SetMode GameMode
     | ElementHovered ElementId
     | ElementUnhovered
     | ElementClicked ElementId
@@ -160,7 +160,7 @@ type Msg
     | SetTimeMultiplier Float
     | NoOp
       -- Storage messages
-    | SaveTick Time.Posix
+    | SaveTick
     | ResetGame
       -- Planning panel messages
     | ClosePlanningPanel
@@ -298,9 +298,6 @@ update msg model =
                         Paused ->
                             Running
             in
-            ( { model | mode = newMode }, Cmd.none )
-
-        SetMode newMode ->
             ( { model | mode = newMode }, Cmd.none )
 
         ElementHovered elementId ->
@@ -574,7 +571,7 @@ update msg model =
         DeselectTrain ->
             ( { model | selectedTrainId = Nothing }, Cmd.none )
 
-        SaveTick _ ->
+        SaveTick ->
             ( model, saveToStorage (Encode.encode 0 (extractSavedState model)) )
 
         ResetGame ->
@@ -703,6 +700,7 @@ extractSavedState model =
     Storage.encodeSavedState savedState
 
 
+
 -- SUBSCRIPTIONS
 
 
@@ -720,7 +718,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ -- Save every second
-          Time.every 1000 SaveTick
+          Time.every 1000 (always SaveTick)
 
         -- Animation when running
         , if model.mode == Running then
@@ -934,18 +932,19 @@ scenarioSpotName scenario spotId =
                 |> List.filter (\s -> s.id == spotId)
                 |> List.head
                 |> Maybe.map .name
-
-        stationPortal =
-            scenario.stations
-                |> List.filter (\s -> s.portal == spotId)
-                |> List.head
-                |> Maybe.map .name
     in
     case edgeSpot of
         Just name ->
             name
 
         Nothing ->
+            let
+                stationPortal =
+                    scenario.stations
+                        |> List.filter (\s -> s.portal == spotId)
+                        |> List.head
+                        |> Maybe.map .name
+            in
             case stationPortal of
                 Just name ->
                     name

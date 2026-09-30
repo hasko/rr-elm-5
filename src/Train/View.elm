@@ -3,12 +3,12 @@ module Train.View exposing (viewTrains)
 {-| Train rendering as top-down SVG.
 -}
 
+import Html.Attributes
 import Json.Decode as Decode
 import Planning.Types exposing (StockItem, StockType(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
-import Html.Attributes
 import Train.Route as Route
 import Train.Stock exposing (couplerGap, stockLength)
 import Train.Types exposing (ActiveTrain)
@@ -247,7 +247,7 @@ viewFlatbed =
             List.concatMap makeRungePair rungePositions
     in
     -- Base deck
-    [ Svg.rect
+    Svg.rect
         [ SvgA.x (String.fromFloat (-length / 2))
         , SvgA.y (String.fromFloat (-carWidth / 2))
         , SvgA.width (String.fromFloat length)
@@ -258,5 +258,4 @@ viewFlatbed =
         , SvgA.rx "0.5"
         ]
         []
-    ]
-        ++ allRungen
+        :: allRungen
