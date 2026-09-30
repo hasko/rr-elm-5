@@ -1,22 +1,22 @@
 module SpottingTest exposing (..)
 
-{-| TDD tests for car-specific spotting in MoveTo.
+{-| Tests for car-specific spotting in MoveTo.
 
 The car-specific spotting feature allows MoveTo to position a specific car
 in the consist at the target spot, rather than always positioning the
-train head (default / backward-compatible behavior).
-
-These tests are written TDD-style: they describe the desired behavior and
-will fail until the implementation lands.
+train head (default behavior).
 
 -}
 
 import Expect
 import Planning.Types exposing (StockItem, StockType(..))
+import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotTarget(..))
 import ScenarioFixtures exposing (ctx, eastRouteReverse)
 import Test exposing (..)
+import Train.Execution as Execution
 import Train.Route as Route
 import Train.Stock exposing (consistLength, couplerGap, stockLength)
+import Train.Types exposing (ActiveTrain, TrainState(..))
 
 
 suite : Test
@@ -82,20 +82,47 @@ backwardCompatTests =
     describe "MoveTo without car index (backward compat)"
         [ test "MoveTo with no car specified positions train head at target" <|
             \_ ->
-                -- The default MoveTo SpotId behavior should position the train head
-                -- (position field) at the target distance. This is existing behavior.
                 let
-                    route =
-                        eastRouteReverse
-
                     platformDist =
-                        Route.spotPosition ctx "platform" route
-                            |> Maybe.withDefault 300
+                        Route.spotPosition ctx "platform" eastRouteReverse
+                            |> Maybe.withDefault 0
+
+                    final =
+                        runToArrival threeCarConsist (MoveTo "platform" TrainHead)
                 in
-                -- The platform spot should be reachable on the siding route
-                platformDist
-                    |> Expect.greaterThan 0
+                Expect.all
+                    [ \t -> t.programCounter |> Expect.equal 1
+                    , \t -> t.position |> Expect.within (Expect.Absolute 0.01) platformDist
+                    ]
+                    final
         ]
+
+
+{-| Run a single MoveTo from the start of the siding route until it completes.
+-}
+runToArrival : List StockItem -> Order -> ActiveTrain
+runToArrival consist order =
+    let
+        go n train =
+            if train.programCounter >= 1 || n <= 0 then
+                train
+
+            else
+                go (n - 1) (Tuple.first (Execution.stepProgram ctx (1 / 60) train))
+    in
+    go 20000
+        { id = 1
+        , consist = consist
+        , position = 0
+        , speed = 0
+        , route = eastRouteReverse
+        , spawnPoint = "east"
+        , program = [ order ]
+        , programCounter = 0
+        , trainState = Executing
+        , reverser = Forward
+        , waitTimer = 0
+        }
 
 
 
@@ -183,27 +210,28 @@ threeCarConsistTests =
 
                     Nothing ->
                         Expect.fail "Expected team-track to be reachable on siding route"
-        , test "spotting car 2 at team track: train head is offset ahead of team track distance" <|
+        , test "spotting car 2 at the platform: train head stops car 2's offset beyond the spot" <|
             \_ ->
-                -- When spotting car 2 at team track, the train head should be
-                -- (car 2 offset) meters AHEAD of the team track distance,
-                -- so that car 2's center aligns with the spot.
+                -- Cars trail the head at lower route distances, so to put car 2's
+                -- center on the spot the head must stop (car 2 offset) meters
+                -- further along the route.
                 let
-                    route =
-                        eastRouteReverse
-
-                    teamTrackDist =
-                        Route.spotPosition ctx "team-track" route
+                    platformDist =
+                        Route.spotPosition ctx "platform" eastRouteReverse
                             |> Maybe.withDefault 0
 
-                    car2Offset =
-                        expectedCarOffset threeCarConsist 2
-
-                    expectedHeadPosition =
-                        teamTrackDist - car2Offset
+                    final =
+                        runToArrival threeCarConsist (MoveTo "platform" (SpotCar 2))
                 in
-                -- The head should be positioned before (lower distance than) the team track
-                -- to account for the car offset
-                expectedHeadPosition
-                    |> Expect.lessThan teamTrackDist
+                Expect.all
+                    [ \t -> t.programCounter |> Expect.equal 1
+                    , \t ->
+                        t.position
+                            |> Expect.within (Expect.Absolute 0.01) (platformDist + expectedCarOffset threeCarConsist 2)
+                    ]
+                    final
+        , test "spotting car 2 at team track needs track beyond the buffer, so it stops with an error" <|
+            \_ ->
+                (runToArrival threeCarConsist (MoveTo "team-track" (SpotCar 2))).trainState
+                    |> Expect.equal (Stopped "Cannot spot at team-track: not enough track")
         ]

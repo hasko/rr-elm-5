@@ -177,7 +177,19 @@ timeMultiplierTests =
                         List.map (\m -> scaledDeltaSeconds 16.67 m) [ 1, 2, 4, 8 ]
 
                     allDistinct =
-                        List.length results == List.length (List.foldl (\x acc -> if List.member x acc then acc else x :: acc) [] results)
+                        List.length results
+                            == List.length
+                                (List.foldl
+                                    (\x acc ->
+                                        if List.member x acc then
+                                            acc
+
+                                        else
+                                            x :: acc
+                                    )
+                                    []
+                                    results
+                                )
                 in
                 allDistinct
                     |> Expect.equal True

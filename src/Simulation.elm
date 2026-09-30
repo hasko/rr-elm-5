@@ -101,26 +101,12 @@ tick ctx deltaMs state =
             else
                 List.map (rebuildIfBeforeTurnouts ctx newTurnoutStates changedTurnouts) executedTrains
 
-        -- Move trains that are still using simple movement (no program).
-        -- Trains with programs are fully handled by stepProgram
-        -- (including coasting to stop after program completion).
-        movedTrains =
-            routeRebuiltTrains
-                |> List.map
-                    (\t ->
-                        if List.isEmpty t.program then
-                            Movement.updateTrain scaledDeltaSeconds t
-
-                        else
-                            t
-                    )
-
         -- Separate despawning trains from surviving trains
         despawningTrains =
-            List.filter Movement.shouldDespawn movedTrains
+            List.filter Movement.shouldDespawn routeRebuiltTrains
 
         updatedTrains =
-            List.filter (not << Movement.shouldDespawn) movedTrains
+            List.filter (not << Movement.shouldDespawn) routeRebuiltTrains
 
         -- Return despawned trains' consist items to exit station inventory
         newInventories =
@@ -215,18 +201,23 @@ rebuildIfBeforeTurnouts ctx newStates changedTurnouts train =
 
 {-| Determine the exit station for a despawning train.
 
-Checks which station's portal the route ends at. Falls back to the
-station opposite the spawn point if the route end isn't a portal
-(e.g., route ends at a buffer stop — shouldn't happen for despawning trains).
+A train that backed out through the start of its route returns to the station
+it came from. Otherwise it checks which station's portal the route ends at,
+falling back to the station opposite the spawn point if the route end isn't a
+portal (e.g., route ends at a buffer stop — shouldn't happen for despawning
+trains).
 
 -}
 exitStation : TrackContext -> ActiveTrain -> String
 exitStation ctx train =
-    case Route.routeEndStation ctx train.route of
-        Just stationId ->
+    case ( Movement.exitedThroughStart train, Route.routeEndStation ctx train.route ) of
+        ( True, _ ) ->
+            train.spawnPoint
+
+        ( False, Just stationId ) ->
             stationId
 
-        Nothing ->
+        ( False, Nothing ) ->
             ctx.stations
                 |> List.map .id
                 |> List.filter ((/=) train.spawnPoint)

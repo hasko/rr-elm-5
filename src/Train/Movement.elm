@@ -1,34 +1,31 @@
 module Train.Movement exposing
-    ( updateTrain
+    ( exitedThroughStart
     , shouldDespawn
     )
 
-{-| Train movement and despawn logic.
+{-| Despawn logic. Movement itself is handled by `Train.Execution`.
 -}
 
+import Programmer.Types exposing (ReverserPosition(..))
 import Train.Stock exposing (consistLength)
 import Train.Types exposing (ActiveTrain)
 
 
-{-| Update a train's position based on elapsed time.
--}
-updateTrain : Float -> ActiveTrain -> ActiveTrain
-updateTrain deltaSeconds train =
-    let
-        newPosition =
-            train.position + train.speed * deltaSeconds
-    in
-    { train | position = newPosition }
-
-
 {-| Check if a train should be despawned (fully exited the route).
-Train is despawned when its last car has exited the route.
+
+A forward train has left once its last car is past the route end; a
+reversing train has left once its head (the trailing end) is back inside
+the portal at the route start.
+
 -}
 shouldDespawn : ActiveTrain -> Bool
 shouldDespawn train =
-    let
-        -- Last car's rear position
-        lastCarRear =
-            train.position - consistLength train.consist
-    in
-    lastCarRear > train.route.totalLength
+    exitedThroughStart train
+        || (train.position - consistLength train.consist > train.route.totalLength)
+
+
+{-| Has the train backed out through the portal at the start of its route?
+-}
+exitedThroughStart : ActiveTrain -> Bool
+exitedThroughStart train =
+    train.reverser == Reverse && train.position < 0

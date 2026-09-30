@@ -4,7 +4,9 @@ module Train.Execution exposing (stepProgram)
 
 Each tick, trains with a program advance through their orders:
 
-  - MoveTo: Accelerate toward target, decelerate to stop at destination
+  - MoveTo: Accelerate toward target, decelerate to stop at destination.
+    MoveTo a station portal at the matching end of the route departs
+    through it: the train keeps going and is despawned by the simulation.
   - SetReverser: Instant, advances immediately
   - SetSwitch: Returns effect for Main to apply, advances immediately
   - WaitSeconds: Counts down timer, advances when done
@@ -14,8 +16,8 @@ Each tick, trains with a program advance through their orders:
 
 import Programmer.Types exposing (Order(..), ReverserPosition(..), SpotTarget(..))
 import Train.Route as Route exposing (TrackContext)
-import Train.Stock exposing (carCenterOffset, consistLength)
-import Train.Types exposing (ActiveTrain, Effect(..), Route, TrainState(..))
+import Train.Stock exposing (carCenterOffset)
+import Train.Types exposing (ActiveTrain, Effect(..), TrainState(..))
 
 
 {-| Acceleration rate in m/s^2 (simple linear acceleration).
@@ -65,8 +67,13 @@ stepProgram ctx deltaSeconds train =
             executeCurrentOrder ctx deltaSeconds train
 
         WaitingForOrders ->
-            -- No program or program complete, coast to stop
-            ( coastToStop deltaSeconds train, [] )
+            if List.isEmpty train.program then
+                -- No program: run through at constant speed
+                ( runThrough ctx deltaSeconds train, [] )
+
+            else
+                -- Program complete: coast to stop
+                ( coastToStop ctx deltaSeconds train, [] )
 
         Stopped _ ->
             -- Train is stopped with an error
@@ -80,7 +87,7 @@ executeCurrentOrder ctx deltaSeconds train =
     case getOrder train.programCounter train.program of
         Nothing ->
             -- Program complete
-            ( coastToStop deltaSeconds { train | trainState = WaitingForOrders }, [] )
+            ( coastToStop ctx deltaSeconds { train | trainState = WaitingForOrders }, [] )
 
         Just order ->
             case order of
@@ -126,89 +133,124 @@ executeMoveTo ctx deltaSeconds spotId spotTarget train =
     case Route.spotPosition ctx spotId train.route of
         Nothing ->
             -- Spot not reachable on this route
-            ( { train
-                | speed = 0
-                , trainState = Stopped ("Cannot reach " ++ spotId)
-              }
-            , []
-            )
+            ( stopWithError ("Cannot reach " ++ spotId) train, [] )
 
         Just spotDistance ->
-            let
-                -- Compute offset for car-specific spotting
-                -- The train head needs to be ahead of the car center by the offset
-                targetDistance =
-                    case spotTarget of
-                        TrainHead ->
-                            spotDistance
-
-                        SpotCar carIndex ->
-                            case carCenterOffset carIndex train.consist of
-                                Just offset ->
-                                    spotDistance + offset
-
-                                Nothing ->
-                                    -- Invalid car index, fall back to train head
-                                    spotDistance
-
-                -- Determine direction based on reverser
-                directionSign =
-                    case train.reverser of
-                        Forward ->
-                            1.0
-
-                        Reverse ->
-                            -1.0
-
-                -- Signed distance to target (positive = target is ahead in travel direction)
-                distanceToTarget =
-                    (targetDistance - train.position) * directionSign
-
-                -- Determine desired speed
-                ( desiredSpeed, newPosition ) =
-                    if abs distanceToTarget < arrivalThreshold then
-                        -- Arrived at target
-                        ( 0, targetDistance )
-
-                    else if distanceToTarget > 0 then
-                        -- Target is ahead: accelerate or brake as needed
-                        let
-                            brakingDistance =
-                                (train.speed * train.speed) / (2 * braking)
-
-                            shouldBrake =
-                                brakingDistance >= abs distanceToTarget
-
-                            newSpeed =
-                                if shouldBrake then
-                                    max 0 (train.speed - braking * deltaSeconds)
-
-                                else
-                                    min maxSpeed (train.speed + acceleration * deltaSeconds)
-
-                            avgSpeed =
-                                (train.speed + newSpeed) / 2
-
-                            pos =
-                                train.position + avgSpeed * directionSign * deltaSeconds
-                        in
-                        ( newSpeed, pos )
-
-                    else
-                        -- Target is behind: we overshot, stop
-                        ( 0, train.position )
-            in
-            if abs distanceToTarget < arrivalThreshold || (desiredSpeed == 0 && abs distanceToTarget < arrivalThreshold * 2) then
-                -- Arrived: advance to next order
-                ( advanceProgram { train | position = targetDistance, speed = 0 }, [] )
+            if isExitPortal ctx spotId spotDistance train then
+                ( departThroughPortal deltaSeconds train, [] )
 
             else
                 let
-                    -- Apply buffer stop safety brake
-                    ( finalSpeed, finalPosition ) =
-                        applyBufferStopBrake train desiredSpeed newPosition deltaSeconds
+                    -- Compute offset for car-specific spotting
+                    -- The train head needs to be ahead of the car center by the offset
+                    targetDistance =
+                        case spotTarget of
+                            TrainHead ->
+                                spotDistance
+
+                            SpotCar carIndex ->
+                                case carCenterOffset carIndex train.consist of
+                                    Just offset ->
+                                        spotDistance + offset
+
+                                    Nothing ->
+                                        -- Invalid car index, fall back to train head
+                                        spotDistance
                 in
-                ( { train | position = finalPosition, speed = finalSpeed }, [] )
+                if targetDistance < 0 || targetDistance > train.route.totalLength then
+                    -- Spotting that car would put the head beyond the end of the track
+                    ( stopWithError ("Cannot spot at " ++ spotId ++ ": not enough track") train, [] )
+
+                else
+                    ( moveTowards ctx deltaSeconds spotId targetDistance train, [] )
+
+
+{-| Drive toward `targetDistance` and come to rest there.
+
+Speed is capped at what can still be braked away in the remaining distance,
+and a tick whose movement would reach or cross the target arrives, so coarse
+time steps cannot overshoot.
+
+-}
+moveTowards : TrackContext -> Float -> String -> Float -> ActiveTrain -> ActiveTrain
+moveTowards ctx deltaSeconds spotId targetDistance train =
+    let
+        directionSign =
+            reverserSign train
+
+        -- Signed distance to target (positive = target is ahead in travel direction)
+        distanceToTarget =
+            (targetDistance - train.position) * directionSign
+    in
+    if abs distanceToTarget < arrivalThreshold then
+        arrive targetDistance train
+
+    else if distanceToTarget < 0 then
+        -- Target lies behind the direction of travel; the order can never complete
+        stopWithError ("Cannot reach " ++ spotId ++ ": it is behind the train") train
+
+    else
+        let
+            newSpeed =
+                (train.speed + acceleration * deltaSeconds)
+                    |> min maxSpeed
+                    |> min (sqrt (2 * braking * distanceToTarget))
+
+            travelled =
+                (train.speed + newSpeed) / 2 * deltaSeconds
+        in
+        if travelled >= distanceToTarget - arrivalThreshold then
+            arrive targetDistance train
+
+        else
+            let
+                ( finalSpeed, finalPosition ) =
+                    applyBufferStopBrake ctx train newSpeed (train.position + travelled * directionSign) deltaSeconds
+            in
+            { train | position = finalPosition, speed = finalSpeed }
+
+
+{-| Snap to the target at rest and move on to the next order.
+-}
+arrive : Float -> ActiveTrain -> ActiveTrain
+arrive targetDistance train =
+    advanceProgram { train | position = targetDistance, speed = 0 }
+
+
+stopWithError : String -> ActiveTrain -> ActiveTrain
+stopWithError message train =
+    { train | speed = 0, trainState = Stopped message }
+
+
+{-| Is `spotId` a station portal the train leaves through by continuing in
+its current direction? Forward trains exit at the far end of the route;
+reversing trains exit through the portal they entered by (route start).
+-}
+isExitPortal : TrackContext -> String -> Float -> ActiveTrain -> Bool
+isExitPortal ctx spotId spotDistance train =
+    List.any (\station -> station.portal == spotId) ctx.stations
+        && (case train.reverser of
+                Forward ->
+                    spotDistance >= train.route.totalLength
+
+                Reverse ->
+                    spotDistance <= 0
+           )
+
+
+{-| Accelerate out through the portal. The order never completes; the
+simulation despawns the train once it has fully left the track.
+-}
+departThroughPortal : Float -> ActiveTrain -> ActiveTrain
+departThroughPortal deltaSeconds train =
+    let
+        newSpeed =
+            min maxSpeed (train.speed + acceleration * deltaSeconds)
+    in
+    { train
+        | speed = newSpeed
+        , position = train.position + (train.speed + newSpeed) / 2 * reverserSign train * deltaSeconds
+    }
 
 
 {-| Execute a WaitSeconds order.
@@ -235,50 +277,47 @@ executeWait deltaSeconds seconds train =
         ( { train | waitTimer = newTimer, speed = 0 }, [] )
 
 
+{-| Keep a train without a program moving at constant speed. It leaves
+through the exit portal, or is brought to a stand by the buffer stop.
+-}
+runThrough : TrackContext -> Float -> ActiveTrain -> ActiveTrain
+runThrough ctx deltaSeconds train =
+    let
+        ( newSpeed, newPosition ) =
+            applyBufferStopBrake ctx train train.speed (train.position + train.speed * reverserSign train * deltaSeconds) deltaSeconds
+    in
+    { train | speed = newSpeed, position = newPosition }
+
+
 {-| Coast to a stop (decelerate without a target).
 -}
-coastToStop : Float -> ActiveTrain -> ActiveTrain
-coastToStop deltaSeconds train =
+coastToStop : TrackContext -> Float -> ActiveTrain -> ActiveTrain
+coastToStop ctx deltaSeconds train =
     if train.speed <= 0 then
         { train | speed = 0 }
 
     else
         let
-            ( brakedSpeed, brakedPosition ) =
-                applyBufferStopBrake train train.speed train.position deltaSeconds
+            newSpeed =
+                max 0 (train.speed - braking * deltaSeconds)
+
+            avgSpeed =
+                (train.speed + newSpeed) / 2
+
+            ( finalSpeed, finalPosition ) =
+                applyBufferStopBrake ctx train newSpeed (train.position + avgSpeed * reverserSign train * deltaSeconds) deltaSeconds
         in
-        if brakedSpeed < train.speed then
-            -- Buffer stop braking took effect
-            { train | speed = brakedSpeed, position = brakedPosition }
-
-        else
-            -- Normal coasting deceleration
-            let
-                newSpeed =
-                    max 0 (train.speed - braking * deltaSeconds)
-
-                avgSpeed =
-                    (train.speed + newSpeed) / 2
-
-                directionSign =
-                    case train.reverser of
-                        Forward ->
-                            1.0
-
-                        Reverse ->
-                            -1.0
-
-                newPosition =
-                    clampPosition train.route (train.position + avgSpeed * directionSign * deltaSeconds)
-            in
-            { train | speed = newSpeed, position = newPosition }
+        { train | speed = finalSpeed, position = finalPosition }
 
 
-{-| Clamp position to stay within route boundaries.
--}
-clampPosition : Route -> Float -> Float
-clampPosition route pos =
-    max 0 (min pos route.totalLength)
+reverserSign : ActiveTrain -> Float
+reverserSign train =
+    case train.reverser of
+        Forward ->
+            1.0
+
+        Reverse ->
+            -1.0
 
 
 {-| Advance program counter to the next order.
@@ -305,61 +344,46 @@ getOrder index orders =
         |> List.head
 
 
-{-| Apply emergency braking if approaching a route boundary.
+{-| Apply emergency braking when approaching a buffer stop.
 
-Forward travel: brake before route end (totalLength).
-Reverse travel: brake before route start (position 0).
+Only a forward-moving train on a route that ends at a buffer stop (rather than
+a station portal) can hit one; the route start is always a portal. Given the
+speed and position the train would otherwise have after this tick, returns
+the braked speed and position, never past the buffer.
 
 -}
-applyBufferStopBrake : ActiveTrain -> Float -> Float -> Float -> ( Float, Float )
-applyBufferStopBrake train speed position deltaSeconds =
+applyBufferStopBrake : TrackContext -> ActiveTrain -> Float -> Float -> Float -> ( Float, Float )
+applyBufferStopBrake ctx train speed position deltaSeconds =
     let
-        isForward =
+        bufferAhead =
             case train.reverser of
                 Forward ->
-                    True
+                    Route.routeEndStation ctx train.route == Nothing
 
                 Reverse ->
                     False
-
-        emergencyBrakeDist =
-            (speed * speed) / (2 * emergencyBraking) + consistLength train.consist
-
-        -- Distance to the relevant route boundary
-        distanceToBoundary =
-            if isForward then
-                train.route.totalLength - train.position
-
-            else
-                train.position
     in
-    if distanceToBoundary < emergencyBrakeDist && speed > 0 then
-        let
-            brakedSpeed =
-                max 0 (speed - emergencyBraking * deltaSeconds)
-
-            avgSpeed =
-                (speed + brakedSpeed) / 2
-
-            directionSign =
-                if isForward then
-                    1.0
-
-                else
-                    -1.0
-
-            newPos =
-                train.position + avgSpeed * directionSign * deltaSeconds
-
-            -- Hard clamp: never exceed route boundaries
-            clampedPos =
-                if isForward then
-                    min newPos train.route.totalLength
-
-                else
-                    max newPos 0
-        in
-        ( brakedSpeed, clampedPos )
+    if not bufferAhead then
+        ( speed, position )
 
     else
-        ( speed, position )
+        let
+            -- The head leads when moving forward, so only its stopping
+            -- distance matters
+            emergencyBrakeDist =
+                (speed * speed) / (2 * emergencyBraking)
+
+            distanceToBuffer =
+                train.route.totalLength - train.position
+        in
+        if speed > 0 && distanceToBuffer < emergencyBrakeDist then
+            let
+                brakedSpeed =
+                    max 0 (speed - emergencyBraking * deltaSeconds)
+            in
+            ( brakedSpeed
+            , min train.route.totalLength (train.position + (speed + brakedSpeed) / 2 * deltaSeconds)
+            )
+
+        else
+            ( speed, min train.route.totalLength position )

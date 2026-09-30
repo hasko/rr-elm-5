@@ -89,18 +89,18 @@ Speed is always stored as a non-negative value. Direction of travel is determine
    ```
    Positive means target is ahead in the travel direction.
 
+   **Departing through a portal**: if the spot is a station portal at the end of the route the train is heading for (route end when `Forward`, route start when `Reverse`), the train does not stop there. It accelerates toward `maxSpeed` and keeps going; the order never completes and the train is despawned once it has fully left the track (section 7).
+
+   **Car spotting**: `targetDistance = spotDistance + carCenterOffset`. If that lies outside `[0, route.totalLength]` (the consist is too long to spot that car there), transition to `Stopped "Cannot spot at <spotName>: not enough track"`.
+
 3. Movement logic (each tick):
    - **Arrived** (`|distanceToTarget| < arrivalThreshold`): Snap position to `targetDistance`, set speed to 0, advance program counter.
+   - **Target behind** (`distanceToTarget < 0`): The order can never complete in this direction. Transition to `Stopped "Cannot reach <spotName>: it is behind the train"`.
    - **Target ahead** (`distanceToTarget > 0`):
-     - Compute braking distance: `speed^2 / (2 * braking)`
-     - If `brakingDistance >= |distanceToTarget|`: brake (`speed - braking * dt`, min 0)
-     - Otherwise: accelerate (`speed + acceleration * dt`, max `maxSpeed`)
-     - Update position: `position + avgSpeed * directionSign * dt` where `avgSpeed = (oldSpeed + newSpeed) / 2`
-   - **Target behind** (`distanceToTarget < 0`): Overshoot detected. Set speed to 0, hold position. The double-check at the top of the next tick will trigger arrival if close enough, otherwise the train sits.
-
-4. After computing desired speed and position, apply buffer stop safety brake (see section 4).
-
-5. Final arrival check: if `|distanceToTarget| < arrivalThreshold` OR `(desiredSpeed == 0 AND |distanceToTarget| < 2 * arrivalThreshold)`, snap to target and advance.
+     - `newSpeed = min(speed + acceleration * dt, maxSpeed, sqrt(2 * braking * distanceToTarget))` -- never faster than can still be braked away in the remaining distance
+     - `travelled = (oldSpeed + newSpeed) / 2 * dt`
+     - If `travelled >= distanceToTarget - arrivalThreshold`, this tick reaches or crosses the target: snap to `targetDistance`, speed 0, advance. This makes arrival independent of the time step, so coarse ticks (high time multiplier, returning from a background tab) cannot overshoot.
+     - Otherwise move by `travelled * directionSign`, then apply the buffer stop safety brake (section 4).
 
 **Postconditions on completion**:
 - `position` is exactly `targetDistance`
@@ -109,6 +109,8 @@ Speed is always stored as a non-negative value. Direction of travel is determine
 
 **Error cases**:
 - Spot not on route: `Stopped "Cannot reach <spotName>"`
+- Spot behind the train: `Stopped "Cannot reach <spotName>: it is behind the train"`
+- Car cannot be spotted within the track: `Stopped "Cannot spot at <spotName>: not enough track"`
 
 ### 3.2 SetReverser (ReverserPosition)
 
@@ -209,22 +211,23 @@ SetSwitchEffect _ Diverging -> turnoutState = Reverse
 
 ## 4. Auto-Braking: Buffer Stop Safety
 
-Trains must automatically emergency-brake before hitting the end of their route (buffer stop).
+Trains must automatically emergency-brake before hitting a buffer stop at the end of their route.
 
 ### Detection
 
 Each tick, compute:
 ```
 bufferStopDistance = route.totalLength - train.position
-emergencyBrakeDist = (speed^2) / (2 * emergencyBraking) + consistLength(consist)
+emergencyBrakeDist = (speed^2) / (2 * emergencyBraking)
 ```
 
-The `consistLength` term accounts for the fact that the entire train body extends behind the lead car position, so we need extra margin.
+Moving forward, the head leads, so only the head's stopping distance matters; no consist-length margin is added (it made trains crawl the last ~25 m to spots near the buffer).
 
 ### Application
 
 Only applies when:
 - Reverser is `Forward` (moving toward higher position values, toward the route end)
+- The route ends at a buffer stop, not a station portal (`Route.routeEndStation` is `Nothing`); trains run out through portals
 - `bufferStopDistance < emergencyBrakeDist`
 - `speed > 0`
 
@@ -238,7 +241,7 @@ clampedPos = min(newPos, route.totalLength)  -- Hard clamp: never exceed route
 
 ### Important Notes
 
-- Buffer stop braking only protects the forward end of the route. Reverse-direction buffer stop protection is a future enhancement.
+- The route start is always the spawn portal, so a reversing train is never braked there; it backs out through the portal and despawns.
 - This safety brake overrides the MoveTo speed calculation. The buffer stop brake is applied AFTER the normal movement calculation.
 - The hard clamp ensures the train can never exceed `route.totalLength` even with floating point drift.
 
@@ -256,9 +259,11 @@ else:
 
 Instant orders (SetReverser, SetSwitch) advance within the same tick. Non-instant orders (MoveTo, WaitSeconds) advance on the tick where their completion condition is met.
 
-## 6. Coast to Stop
+## 6. Coast to Stop / Run Through
 
-When a train is `WaitingForOrders` with speed > 0, it decelerates to a stop:
+A `WaitingForOrders` train with **no program** runs through at constant speed in its reverser direction: out through the exit portal (then despawned), or brought to a stand by the buffer stop brake on a route that ends at a buffer.
+
+A `WaitingForOrders` train whose program has **finished** and whose speed > 0 decelerates to a stop:
 
 ```
 newSpeed = max(0, speed - braking * dt)
@@ -266,7 +271,7 @@ avgSpeed = (oldSpeed + newSpeed) / 2
 position = position + avgSpeed * directionSign * dt
 ```
 
-This uses normal braking, not emergency braking.
+This uses normal braking, not emergency braking. The buffer stop brake still applies; nothing else clamps the position, so a train still inside the entry tunnel (negative position) is not teleported onto the track.
 
 ## 7. Integration with Main.elm Tick Handler
 
@@ -278,10 +283,11 @@ Each simulation tick processes in this order:
 4. **Spawn new trains**: Check scheduled trains against elapsed time. New trains get routes built from current switch state.
 5. **Execute programs**: Call `Execution.stepProgram scaledDeltaSeconds` on every active train. Collect `(updatedTrain, List Effect)` pairs.
 6. **Apply effects**: Fold all effects into world state (switch effects update turnout state).
-7. **Fallback movement**: Trains that are `WaitingForOrders` with no program use the legacy `Movement.updateTrain` for simple constant-speed movement (backward compatibility for programless trains).
-8. **Despawn check**: Remove trains that have exited the track (`shouldDespawn`).
-9. **Stock return**: Return despawned trains' consist items to the exit station's inventory.
-10. **Update model**: Apply all changes.
+7. **Despawn check**: Remove trains that have exited the track (`Movement.shouldDespawn`): a forward train once its last car is past `route.totalLength`, a reversing train once its head is back behind position 0.
+8. **Stock return**: Return despawned trains' consist items to the exit station's inventory (the spawn station for trains that backed out).
+9. **Update model**: Apply all changes.
+
+All movement happens in `Execution.stepProgram`; there is no second movement pass.
 
 ### Effect Types
 
@@ -300,6 +306,8 @@ Error messages follow the pattern: `"<OrderName>: <reason>"`. These are displaye
 | Situation | Message |
 |-----------|---------|
 | MoveTo unreachable spot | `"Cannot reach <spotName>"` |
+| MoveTo spot behind the train | `"Cannot reach <spotName>: it is behind the train"` |
+| MoveTo car spot needs track past the end | `"Cannot spot at <spotName>: not enough track"` |
 | Couple with no adjacent cars | `"Couple: no adjacent cars found"` |
 | Uncouple not yet supported | `"Uncouple: not yet supported"` |
 | Future: uncouple while moving | `"Cannot uncouple while moving"` |
@@ -317,7 +325,9 @@ Error messages follow the pattern: `"<OrderName>: <reason>"`. These are displaye
 - Train accelerates from rest toward a reachable spot
 - Train brakes to stop at the target (position snaps to targetDistance)
 - Train on mainline cannot reach PlatformSpot (stops with error)
-- Train overshooting target stops (distanceToTarget < 0)
+- Target behind the train stops with an error
+- Coarse time steps (e.g. 0.8 s) never overshoot: arrival from every start position
+- MoveTo a portal at the route end departs and despawns; reversing to the spawn portal backs out and despawns
 
 ### WaitSeconds
 - Timer initializes on first tick, decrements each tick
@@ -333,9 +343,11 @@ Error messages follow the pattern: `"<OrderName>: <reason>"`. These are displaye
 - Program completion: last order finishes, trainState becomes WaitingForOrders
 - Multi-order sequence: orders execute in order across ticks
 
-### Coast to Stop
-- WaitingForOrders train with speed > 0 decelerates
+### Coast to Stop / Run Through
+- Finished-program train with speed > 0 decelerates
 - WaitingForOrders train with speed 0 stays put
+- Programless train keeps constant speed, is not teleported out of the tunnel, and despawns at the exit portal
+- Programless train on a siding stops at the buffer
 
 ### Stopped State
 - Stopped train stays stopped (speed 0, same error message) on subsequent ticks
@@ -343,4 +355,4 @@ Error messages follow the pattern: `"<OrderName>: <reason>"`. These are displaye
 ### Buffer Stop Safety
 - Train approaching route end triggers emergency braking
 - Train position never exceeds route.totalLength
-- Only applies in Forward direction
+- Only applies in Forward direction on routes ending at a buffer (not a portal)

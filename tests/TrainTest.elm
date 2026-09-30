@@ -9,7 +9,7 @@ import Set
 import Test exposing (..)
 import Track.Element exposing (ElementId(..))
 import Train.Execution as Execution
-import Train.Movement exposing (shouldDespawn, updateTrain)
+import Train.Movement exposing (shouldDespawn)
 import Train.Route as Route
 import Train.Spawn exposing (checkSpawns)
 import Train.Stock exposing (consistLength, couplerGap, stockLength, trainSpeed)
@@ -97,43 +97,7 @@ stockTests =
 movementTests : Test
 movementTests =
     describe "Train.Movement"
-        [ describe "updateTrain"
-            [ test "moves train forward by speed * delta" <|
-                \_ ->
-                    let
-                        train =
-                            testTrain
-                                { id = 1
-                                , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                                , position = 0.0
-                                , speed = 10.0
-                                , route = testRoute 500.0
-                                }
-
-                        updated =
-                            updateTrain 1.0 train
-                    in
-                    updated.position
-                        |> Expect.within (Expect.Absolute 0.01) 10.0
-            , test "updates position correctly with fractional delta" <|
-                \_ ->
-                    let
-                        train =
-                            testTrain
-                                { id = 1
-                                , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
-                                , position = 100.0
-                                , speed = 11.11
-                                , route = testRoute 500.0
-                                }
-
-                        updated =
-                            updateTrain 0.5 train
-                    in
-                    updated.position
-                        |> Expect.within (Expect.Absolute 0.01) 105.555
-            ]
-        , describe "shouldDespawn"
+        [ describe "shouldDespawn"
             [ test "returns False when train is on route" <|
                 \_ ->
                     let
@@ -842,7 +806,7 @@ executionTests =
                             Expect.fail "Expected Stopped state for unreachable spot"
             ]
         , describe "WaitingForOrders"
-            [ test "train with no program coasts to stop" <|
+            [ test "train whose program finished coasts to stop" <|
                 \_ ->
                     let
                         route =
@@ -855,8 +819,8 @@ executionTests =
                             , speed = 5.0
                             , route = route
                             , spawnPoint = "east"
-                            , program = []
-                            , programCounter = 0
+                            , program = [ Programmer.Types.WaitSeconds 1 ]
+                            , programCounter = 1
                             , trainState = WaitingForOrders
                             , reverser = Programmer.Types.Forward
                             , waitTimer = 0
@@ -870,6 +834,78 @@ executionTests =
                         , \_ -> effects |> Expect.equal []
                         ]
                         result
+            , test "train with no program runs through at constant speed" <|
+                \_ ->
+                    let
+                        train =
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
+                            , position = 10
+                            , speed = 5.0
+                            , route = eastRouteNormal
+                            , spawnPoint = "east"
+                            , program = []
+                            , programCounter = 0
+                            , trainState = WaitingForOrders
+                            , reverser = Programmer.Types.Forward
+                            , waitTimer = 0
+                            }
+
+                        ( result, _ ) =
+                            Execution.stepProgram ctx 0.5 train
+                    in
+                    Expect.all
+                        [ \r -> r.speed |> Expect.within (Expect.Absolute 0.001) 5.0
+                        , \r -> r.position |> Expect.within (Expect.Absolute 0.001) 12.5
+                        ]
+                        result
+            , test "train with no program is not teleported out of the tunnel" <|
+                \_ ->
+                    let
+                        train =
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
+                            , position = -10
+                            , speed = 10.0
+                            , route = eastRouteNormal
+                            , spawnPoint = "east"
+                            , program = []
+                            , programCounter = 0
+                            , trainState = WaitingForOrders
+                            , reverser = Programmer.Types.Forward
+                            , waitTimer = 0
+                            }
+
+                        ( result, _ ) =
+                            Execution.stepProgram ctx 0.1 train
+                    in
+                    result.position |> Expect.within (Expect.Absolute 0.001) -9
+            , test "train with no program on a siding stops at the buffer" <|
+                \_ ->
+                    let
+                        train =
+                            { id = 1
+                            , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
+                            , position = eastRouteReverse.totalLength - 30
+                            , speed = 11.1
+                            , route = eastRouteReverse
+                            , spawnPoint = "east"
+                            , program = []
+                            , programCounter = 0
+                            , trainState = WaitingForOrders
+                            , reverser = Programmer.Types.Forward
+                            , waitTimer = 0
+                            }
+
+                        final =
+                            List.foldl (\_ t -> Tuple.first (Execution.stepProgram ctx 0.1 t)) train (List.range 1 200)
+                    in
+                    Expect.all
+                        [ \r -> r.speed |> Expect.equal 0
+                        , \r -> r.position |> Expect.atMost eastRouteReverse.totalLength
+                        , \r -> shouldDespawn r |> Expect.equal False
+                        ]
+                        final
             ]
         , describe "Stopped state"
             [ test "stopped train stays stopped" <|
@@ -1082,7 +1118,7 @@ executionTests =
                         , \_ -> step2.position |> Expect.lessThan (platformDist + 50)
                         ]
                         ()
-            , test "MoveTo target behind train in Forward direction stops (overshoot)" <|
+            , test "MoveTo target behind train in Forward direction stops with an error" <|
                 \_ ->
                     let
                         route =
@@ -1110,8 +1146,12 @@ executionTests =
                         ( result, _ ) =
                             Execution.stepProgram ctx 0.5 train
                     in
-                    -- Target is behind in forward direction: speed should be 0
-                    result.speed |> Expect.equal 0
+                    -- Target is behind in forward direction: the order can never complete
+                    Expect.all
+                        [ \r -> r.speed |> Expect.equal 0
+                        , \r -> r.trainState |> Expect.equal (Stopped "Cannot reach platform: it is behind the train")
+                        ]
+                        result
             ]
         , describe "MoveTo arrival and advance"
             [ test "MoveTo reaches target and advances program counter" <|
@@ -1237,8 +1277,8 @@ executionTests =
                             , speed = 3.0
                             , route = route
                             , spawnPoint = "east"
-                            , program = []
-                            , programCounter = 0
+                            , program = [ Programmer.Types.WaitSeconds 1 ]
+                            , programCounter = 1
                             , trainState = WaitingForOrders
                             , reverser = Programmer.Types.Forward
                             , waitTimer = 0
@@ -1303,20 +1343,16 @@ executionTests =
                     in
                     result.trainState |> Expect.equal (Stopped "Cannot reach platform")
             ]
-        , describe "buffer stop braking in both directions"
-            [ test "reverse-direction buffer stop braking near position 0" <|
+        , describe "route start is the spawn portal, not a buffer"
+            [ test "reversing train is not braked near position 0" <|
                 \_ ->
                     let
-                        route =
-                            eastRouteReverse
-
-                        -- Train near start of route, moving in reverse (toward position 0)
                         train =
                             { id = 1
                             , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                             , position = 5
                             , speed = 10.0
-                            , route = route
+                            , route = eastRouteReverse
                             , spawnPoint = "east"
                             , program = []
                             , programCounter = 0
@@ -1329,22 +1365,19 @@ executionTests =
                             Execution.stepProgram ctx 0.5 train
                     in
                     Expect.all
-                        [ \r -> r.speed |> Expect.lessThan 10.0
-                        , \r -> r.position |> Expect.atLeast 0
+                        [ \r -> r.speed |> Expect.within (Expect.Absolute 0.001) 10.0
+                        , \r -> r.position |> Expect.within (Expect.Absolute 0.001) 0
                         ]
                         result
-            , test "reverse-direction position never goes below 0" <|
+            , test "reversing train backs out through the portal and despawns" <|
                 \_ ->
                     let
-                        route =
-                            eastRouteReverse
-
                         train =
                             { id = 1
                             , consist = [ { id = 1, stockType = Locomotive, reversed = False, provisional = False } ]
                             , position = 1
                             , speed = 20.0
-                            , route = route
+                            , route = eastRouteReverse
                             , spawnPoint = "east"
                             , program = []
                             , programCounter = 0
@@ -1355,14 +1388,8 @@ executionTests =
 
                         ( step1, _ ) =
                             Execution.stepProgram ctx 0.5 train
-
-                        ( step2, _ ) =
-                            Execution.stepProgram ctx 0.5 step1
-
-                        ( step3, _ ) =
-                            Execution.stepProgram ctx 0.5 step2
                     in
-                    step3.position |> Expect.atLeast 0
+                    shouldDespawn step1 |> Expect.equal True
             ]
         , describe "stock return on despawn"
             [ test "returnStockToInventory adds items back to correct spawn point" <|
